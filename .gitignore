@@ -1,0 +1,24 @@
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+
+# Build
+dist/
+build/
+.next/
+out/
+
+# Logs
+logs/
+*.log
