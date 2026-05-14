@@ -26,6 +26,9 @@ async def ingest_logs(log_data: str = Body(..., embed=True)):
     Accepts raw log strings and parses them into structured data.
     In production, this would queue for vectorization.
     """
+    if not log_data or not log_data.strip():
+        raise HTTPException(status_code=400, detail="Log message cannot be empty")
+
     parsed = LogParser.parse_line(log_data)
     if not parsed:
          return {"status": "accepted_raw", "message": log_data}
