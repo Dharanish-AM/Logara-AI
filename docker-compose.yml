@@ -1,26 +1,6 @@
 version: '3.8'
 
 services:
-  backend:
-    build: ./backend
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-    environment:
-      - VECTOR_DB_URL=http://qdrant:6333
-    depends_on:
-      - qdrant
-      - ollama
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-
   qdrant:
     image: qdrant/qdrant:latest
     ports:
@@ -28,6 +8,11 @@ services:
       - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
 
   ollama:
     image: ollama/ollama:latest

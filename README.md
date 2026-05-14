@@ -61,7 +61,13 @@ Logara AI is currently in **active development (Alpha)**. We are focusing on sta
    cd Logara-AI
    ```
 
-2. **Backend**:
+2. **Start Infrastructure**:
+
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Backend**:
 
    ```bash
    cd backend
@@ -71,7 +77,7 @@ Logara AI is currently in **active development (Alpha)**. We are focusing on sta
    fastapi dev main.py
    ```
 
-3. **Frontend**:
+4. **Frontend**:
 
    ```bash
    cd frontend
