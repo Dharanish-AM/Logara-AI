@@ -61,6 +61,13 @@ Logara AI is currently in **active development (Alpha)**. We are focusing on sta
    cd Logara-AI
    ```
 
+Before running, set your Redis password in .env:
+
+```bash
+cp .env.example .env
+# Edit .env and set REDIS_PASSWORD
+```
+
 2. **Start Infrastructure**:
 
    ```bash
