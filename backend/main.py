@@ -33,11 +33,10 @@ async def ingest_logs(log_data: str = Body(..., embed=True)):
     if not parsed:
          return {"status": "accepted_raw", "message": log_data}
     
-    metadata = LogParser.extract_metadata(parsed["message"])
     return {
         "status": "success",
         "parsed": parsed,
-        "metadata": metadata
+        "metadata": parsed["metadata"]
     }
 
 @app.get("/health")
