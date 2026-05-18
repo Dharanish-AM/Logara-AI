@@ -8,3 +8,6 @@ langchain-ollama
 langchain-huggingface
 ollama
 sentence-transformers
+redis
+pytest
+httpx
