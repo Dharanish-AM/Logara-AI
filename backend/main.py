@@ -1,5 +1,6 @@
 import os
 import json
+import threading
 
 import httpx
 from fastapi import FastAPI, HTTPException, Body, Response
@@ -11,7 +12,34 @@ from utils.queue import redis_client
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-__
+
+class ThreadSafeQdrantClient:
+    """
+    Thread-safe, lazy-initialized, and mock-friendly wrapper for QdrantClient.
+    Acts as a transparent proxy to optimize connection pooling in production
+    while staying compatible with runtime test mocks.
+    """
+    def __init__(self):
+        self._client = None
+        self._last_class = None
+        self._lock = threading.Lock()
+
+    @property
+    def client(self) -> QdrantClient:
+        # If QdrantClient class in global namespace changes (e.g. mock patching),
+        # re-instantiate it so that the new mock/stub is properly used.
+        if self._client is None or self._last_class is not QdrantClient:
+            with self._lock:
+                if self._client is None or self._last_class is not QdrantClient:
+                    self._client = QdrantClient(url=QDRANT_URL, timeout=3)
+                    self._last_class = QdrantClient
+        return self._client
+
+    def __getattr__(self, name):
+        return getattr(self.client, name)
+
+qclient = ThreadSafeQdrantClient()
+
 
 app = FastAPI(
     title="Logara AI API",
@@ -86,9 +114,8 @@ async def health_check(response: Response):
         services["redis"] = {"status": "healthy"}
     except Exception as e:
         services["redis"] = {"status": "unhealthy", "error": str(e)}
-    # Qdrant check (initialize inline, lightweight collections call)
+    # Qdrant check (reusable thread-safe global client, lightweight collections call)
     try:
-        qclient = QdrantClient(url=QDRANT_URL, timeout=3)
         qclient.get_collections()
         services["qdrant"] = {"status": "healthy"}
     except Exception as e:
