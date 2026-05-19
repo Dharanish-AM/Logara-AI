@@ -8,6 +8,7 @@ ingestion and the upcoming vectorization/LLM processing layers.
 
 import json
 import logging
+import time
 from utils.queue import redis_client
 
 # Configure basic logging for the worker
@@ -62,8 +63,7 @@ def run_worker():
             break
         except Exception as e:
             logger.error(f"Queue connection error: {e}")
-            # In a production setting, we might want a small sleep here
-            # to prevent a tight crash loop if Redis goes down.
+            time.sleep(5)  # Prevent tight loop, allow Redis to recover
 
 if __name__ == "__main__":
     run_worker()
