@@ -7,26 +7,34 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_FORMATS = [
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%dT%H:%M:%SZ",
+    "%Y-%m-%d %H:%M:%S.%f",
+    "%Y-%m-%dT%H:%M:%S.%fZ",
+]
+
+
 def normalize_timestamp(ts_str: str) -> Optional[str]:
     """
-    Attempts to normalize a raw timestamp string to an ISO 8601 format.
-    Gracefully falls back to the original string if parsing fails.
+    Attempts to normalize timestamps into ISO 8601 format.
+    Falls back safely to the raw value if parsing fails.
     """
     if not ts_str:
         return None
 
-    try:
-        parsed_dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
-        return parsed_dt.isoformat()
+    clean_ts = ts_str.strip()
 
-    except ValueError:
-        logger.debug(
-            f"Timestamp '{ts_str}' did not match expected formats. Returning raw."
-        )
-        return ts_str
+    for fmt in SUPPORTED_FORMATS:
+        try:
+            parsed_dt = datetime.strptime(clean_ts, fmt)
+            return parsed_dt.isoformat()
+        except ValueError:
+            continue
 
-    except Exception as e:
-        logger.warning(
-            f"Unexpected error normalizing timestamp '{ts_str}': {e}"
-        )
-        return ts_str
+    logger.debug(
+        f"Timestamp '{ts_str}' did not match supported formats. Returning raw."
+    )
+
+    return ts_str
