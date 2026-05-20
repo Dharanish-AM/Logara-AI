@@ -11,7 +11,6 @@ from utils.queue import redis_client
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-__
 
 app = FastAPI(
     title="Logara AI API",
