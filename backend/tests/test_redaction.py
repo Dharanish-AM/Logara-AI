@@ -1,0 +1,104 @@
+"""Tests for backend/utils/redaction.py"""
+from utils.redaction import build_default_redactor, Redactor, DEFAULT_RULES
+
+
+def test_redacts_jwt():
+    r = build_default_redactor()
+    text = "User logged in with token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature"
+    out = r.redact(text)
+    assert "[REDACTED:JWT]" in out
+    assert "eyJhbGciOiJIUzI1NiJ9" not in out
+
+
+def test_redacts_aws_access_key():
+    r = build_default_redactor()
+    out = r.redact("AWS key AKIAIOSFODNN7EXAMPLE was used")
+    assert "[REDACTED:AWS_ACCESS_KEY]" in out
+    assert "AKIAIOSFODNN7EXAMPLE" not in out
+
+
+def test_redacts_openai_key():
+    r = build_default_redactor()
+    out = r.redact("sk-1234567890abcdefghij failed auth")
+    assert "[REDACTED:API_KEY]" in out
+
+
+def test_redacts_email():
+    r = build_default_redactor()
+    out = r.redact("user alice@example.com signed up")
+    assert "[REDACTED:EMAIL]" in out
+    assert "alice@example.com" not in out
+
+
+def test_redacts_bearer_token():
+    r = build_default_redactor()
+    out = r.redact("Authorization: Bearer abc123def456ghi789jkl012")
+    assert "[REDACTED:BEARER]" in out
+
+
+def test_credit_card_luhn_valid():
+    r = build_default_redactor()
+    # 4111 1111 1111 1111 is a known valid Luhn test number
+    out = r.redact("Charged card 4111 1111 1111 1111 for $50")
+    assert "[REDACTED:CREDIT_CARD]" in out
+
+
+def test_credit_card_luhn_invalid_passes_through():
+    r = build_default_redactor()
+    # Random 16-digit run that fails Luhn — should NOT be redacted
+    out = r.redact("Order id 1234567890123456 placed")
+    assert "1234567890123456" in out
+
+
+def test_disabled_passes_text_through():
+    r = build_default_redactor(enabled=False)
+    text = "token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature"
+    assert r.redact(text) == text
+
+
+def test_pattern_filter_only_enables_named():
+    r = build_default_redactor(pattern_names=["email"])
+    out = r.redact("alice@example.com used key sk-abcdef1234567890abcdef")
+    assert "[REDACTED:EMAIL]" in out
+    assert "sk-abcdef1234567890abcdef" in out  # API key NOT redacted
+
+
+def test_ipv4_off_by_default():
+    r = build_default_redactor()
+    out = r.redact("Request from 192.168.1.100")
+    assert "192.168.1.100" in out
+
+
+def test_ipv4_when_enabled():
+    r = build_default_redactor(include_ipv4=True)
+    out = r.redact("Request from 192.168.1.100")
+    assert "[REDACTED:IPV4]" in out
+
+
+def test_redact_dict_walks_nested_values():
+    r = build_default_redactor()
+    data = {
+        "user": {"email": "alice@example.com"},
+        "headers": {"Authorization": "Bearer abc123def456ghi789jkl012"},
+        "level": "ERROR",
+        "tags": ["sk-abcdef1234567890abcdef", "normal-tag"],
+    }
+    r.redact_dict(data)
+    assert "[REDACTED:EMAIL]" in data["user"]["email"]
+    assert "[REDACTED:BEARER]" in data["headers"]["Authorization"]
+    assert data["level"] == "ERROR"
+    assert "[REDACTED:API_KEY]" in data["tags"][0]
+    assert data["tags"][1] == "normal-tag"
+
+
+def test_redact_dict_disabled_returns_unchanged():
+    r = build_default_redactor(enabled=False)
+    data = {"email": "alice@example.com"}
+    r.redact_dict(data)
+    assert data["email"] == "alice@example.com"
+
+
+def test_empty_text():
+    r = build_default_redactor()
+    assert r.redact("") == ""
+    assert r.redact(None) is None

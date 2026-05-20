@@ -9,6 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from qdrant_client import QdrantClient
 from utils.parser import LogParser
 from utils.queue import redis_client
+from utils.redaction import build_default_redactor
+from utils.constants import REDACT_ENABLED, REDACT_PATTERNS, REDACT_IPV4
+
+redactor = build_default_redactor(
+    enabled=REDACT_ENABLED,
+    pattern_names=REDACT_PATTERNS,
+    include_ipv4=REDACT_IPV4,
+)
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -34,6 +42,16 @@ class ThreadSafeQdrantClient:
                     self._client = QdrantClient(url=QDRANT_URL, timeout=3)
                     self._last_class = QdrantClient
         return self._client
+
+    def close(self):
+        """
+        Close the underlying Qdrant client connection if initialized.
+        """
+        if self._client is not None:
+            try:
+                self._client.close()
+            except AttributeError:
+                pass
 
     def __getattr__(self, name):
         return getattr(self.client, name)
@@ -67,7 +85,7 @@ async def root():
 @app.post("/ingest")
 async def ingest_logs(log_data: str = Body(..., embed=True)):
     """
-    Accepts raw log strings, parses them into structured data,
+    Accepts raw log strings, scrubs secrets/PII, parses them into structured data,
     and pushes the payload to the Redis queue for asynchronous processing.
     """
     if not log_data or not log_data.strip():
@@ -75,16 +93,23 @@ async def ingest_logs(log_data: str = Body(..., embed=True)):
             status_code=400,
             detail="Log message cannot be empty"
         )
+    
+    # Scrub secrets/PII before any downstream processing
+    clean_log = redactor.redact(log_data)
 
-    parsed = LogParser.parse_line(log_data)
+    parsed = LogParser.parse_line(clean_log)
 
     if not parsed:
         return {
             "status": "accepted_raw",
-            "message": log_data
+            "message": clean_log
         }
 
     metadata = parsed.get("metadata", {})
+    
+    # Scrub nested JSON values too (parser may have extracted secret
+    # fields from structured logs that wouldn't match the raw-text regex)
+    parsed = redactor.redact_dict(parsed)
 
     payload = {
         "parsed": parsed,
