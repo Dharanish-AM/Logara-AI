@@ -102,3 +102,71 @@ def test_empty_text():
     r = build_default_redactor()
     assert r.redact("") == ""
     assert r.redact(None) is None
+
+from utils.redaction import REDACTION_METRICS
+
+
+def reset_metrics():
+    REDACTION_METRICS["total_redactions"] = 0
+    REDACTION_METRICS["payloads_sanitized"] = 0
+
+
+def test_redaction_metrics_increment():
+    reset_metrics()
+
+    r = build_default_redactor()
+
+    result = r.redact_with_summary(
+        "Contact admin@example.com immediately"
+    )
+
+    assert "[REDACTED:EMAIL]" in result.text
+
+    assert REDACTION_METRICS["total_redactions"] == 1
+    assert REDACTION_METRICS["payloads_sanitized"] == 1
+
+
+def test_multiple_redaction_types_tracking():
+    reset_metrics()
+
+    r = build_default_redactor()
+
+    text = (
+        "Email alice@example.com "
+        "used key sk-1234567890abcdefghij"
+    )
+
+    result = r.redact_with_summary(text)
+
+    assert result.matches["EMAIL"] == 1
+    assert result.matches["API_KEY"] == 1
+
+    assert REDACTION_METRICS["total_redactions"] == 2
+    assert REDACTION_METRICS["payloads_sanitized"] == 1
+
+
+def test_redaction_result_contains_match_summary():
+    reset_metrics()
+
+    r = build_default_redactor()
+
+    result = r.redact_with_summary(
+        "Bearer abc123def456ghi789jkl012"
+    )
+
+    assert result.matches["BEARER"] == 1
+
+
+def test_no_redactions_do_not_increment_metrics():
+    reset_metrics()
+
+    r = build_default_redactor()
+
+    result = r.redact_with_summary(
+        "Normal application log"
+    )
+
+    assert result.matches == {}
+
+    assert REDACTION_METRICS["total_redactions"] == 0
+    assert REDACTION_METRICS["payloads_sanitized"] == 0

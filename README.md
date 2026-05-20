@@ -8,6 +8,7 @@ Logara AI is a modular observability platform designed to transform raw, noisy l
 - **Root Cause Synthesis**: Automated analysis of error clusters to identify underlying infrastructure or application issues.
 - **Local-First Processing**: Designed to run with Ollama for sensitive log data that shouldn't leave your infrastructure.
 - **Anomaly Correlation**: Detects statistical outliers in log volume and type to preempt site reliability issues.
+- **Security-Aware Log Sanitization**: Automatically redacts sensitive data such as API keys, JWTs, emails, bearer tokens, and credit card patterns before logs enter downstream processing pipelines.
 
 ## Architecture
 
@@ -36,6 +37,31 @@ graph TD
 ## Development Status & Roadmap
 
 Logara AI is currently in **active development (Alpha)**. We are focusing on stabilization of the ingestion pipeline and refining the embedding strategy for nested JSON logs.
+
+## Security & Redaction Pipeline
+
+Logara AI includes a configurable backend redaction pipeline designed to sanitize sensitive information before logs enter queue processing, vectorization, or downstream AI workflows.
+
+### Currently Supported Redaction Types
+
+- JWT tokens
+- API keys
+- AWS access keys
+- Bearer tokens
+- Email addresses
+- Credit card patterns (Luhn validated)
+- Optional IPv4 masking
+
+### Redaction Observability
+
+The backend ingestion pipeline also supports:
+
+- lightweight redaction metrics tracking
+- structured redaction summaries
+- nested payload sanitization
+- recursive dictionary/list redaction handling
+
+This helps improve operational visibility while reducing the risk of sensitive data exposure during observability workflows.
 
 ### 2026 Roadmap
 
@@ -81,10 +107,10 @@ cp .env.example .env
    python -m venv venv
    source venv/bin/activate
    pip install -r requirements.txt
-   
+
    # In terminal 1: Start the ingestor API
    fastapi dev main.py
-   
+
    # In terminal 2: Start the background log processor
    python worker.py
    ```

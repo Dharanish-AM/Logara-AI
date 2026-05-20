@@ -56,7 +56,9 @@ async def ingest_logs(log_data: str = Body(..., embed=True)):
         )
     
     # Scrub secrets/PII before any downstream processing
-    clean_log = redactor.redact(log_data)
+    redaction_result = redactor.redact_with_summary(log_data)
+
+    clean_log = redaction_result.text
 
     parsed = LogParser.parse_line(clean_log)
 
@@ -86,10 +88,11 @@ async def ingest_logs(log_data: str = Body(..., embed=True)):
         )
 
     return {
-        "status": "success_queued",
-        "parsed": parsed,
-        "metadata": metadata
-    }
+    "status": "success_queued",
+    "parsed": parsed,
+    "metadata": metadata,
+    "redaction_summary": redaction_result.matches
+}
 
 @app.get("/health", status_code=200)
 async def health_check(response: Response):
