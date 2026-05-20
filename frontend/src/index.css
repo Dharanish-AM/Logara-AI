@@ -1,28 +1,202 @@
 @import "tailwindcss";
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: Inter, system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: dark light;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #0c0a09;
+  color-scheme: dark;
+  color: rgba(255, 255, 255, 0.92);
+  background: #050505;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --surface-primary: rgba(15, 15, 15, 0.72);
+  --surface-secondary: rgba(255, 255, 255, 0.03);
+
+  --border-primary: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(99, 102, 241, 0.4);
+
+  --shadow-primary:
+    0 10px 35px rgba(0, 0, 0, 0.35);
+
+  --shadow-hover:
+    0 20px 50px rgba(99, 102, 241, 0.18);
+
+  --transition-primary:
+    transform 0.35s ease,
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    background 0.35s ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
+
   min-width: 320px;
   min-height: 100vh;
+
+  overflow-x: hidden;
+
+  background:
+    radial-gradient(
+      circle at top,
+      rgba(99, 102, 241, 0.12),
+      transparent 35%
+    ),
+    #050505;
+
+  color: rgba(255, 255, 255, 0.92);
 }
 
 #root {
   width: 100%;
+  min-height: 100vh;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button {
+  border: none;
+  outline: none;
+}
+
+::selection {
+  background: rgba(99, 102, 241, 0.35);
+  color: #ffffff;
+}
+
+a,
+button,
+input,
+textarea,
+select {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+/* ---------- Reusable Glass Surface ---------- */
+
+.glass-surface {
+  background: var(--surface-primary);
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+
+  border: 1px solid var(--border-primary);
+
+  box-shadow:
+    var(--shadow-primary),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* ---------- Interactive Cards ---------- */
+
+.ui-card {
+  border-radius: 24px;
+
+  background: var(--surface-secondary);
+
+  transition: var(--transition-primary);
+}
+
+.ui-card:hover {
+  transform: translateY(-8px);
+
+  border-color: var(--border-hover);
+
+  box-shadow:
+    var(--shadow-hover),
+    0 0 28px rgba(59, 130, 246, 0.08);
+}
+
+/* ---------- Buttons ---------- */
+
+.ui-button {
+  border-radius: 14px;
+
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    opacity 0.3s ease;
+}
+
+.ui-button:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 10px 25px rgba(99, 102, 241, 0.22);
+}
+
+.ui-button:active {
+  transform: scale(0.98);
+}
+
+/* ---------- Section Reveal ---------- */
+
+.fade-up {
+  animation: fadeUp 0.8s ease forwards;
+}
+
+.fade-up-delay {
+  animation: fadeUp 1.1s ease forwards;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- Divider ---------- */
+
+.section-divider {
+  width: 100%;
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(99, 102, 241, 0.3),
+      transparent
+    );
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 768px) {
+  .ui-card {
+    border-radius: 18px;
+  }
+
+  .ui-button {
+    width: 100%;
+  }
 }
