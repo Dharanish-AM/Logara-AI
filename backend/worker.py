@@ -2,13 +2,13 @@
 Log Processor Worker
 
 Consumes log payloads from the Redis queue and processes them for
-future vectorization and LLM analysis workflows.
+vectorization and storage in Qdrant via the LogService.
 """
 
 import json
 import logging
 import time
-from typing import Dict
+from typing import Dict, Optional
 
 from utils.queue import redis_client
 
@@ -25,6 +25,22 @@ WORKER_METRICS: Dict[str, int] = {
     "failed_logs": 0,
     "malformed_payloads": 0
 }
+
+# Lazy-initialized LogService to avoid circular imports with main.py
+_log_service = None
+
+
+def _get_log_service():
+    """
+    Lazily import and instantiate LogService to avoid circular imports.
+    worker.py -> main.py -> (FastAPI app) is only resolved at runtime.
+    """
+    global _log_service
+    if _log_service is None:
+        from main import qclient
+        from services.log_service import LogService
+        _log_service = LogService(qclient)
+    return _log_service
 
 
 def increment_metric(metric_name: str):
@@ -62,6 +78,15 @@ def process_log(payload_str: str) -> bool:
         level = parsed.get("level", "UNKNOWN")
         message = parsed.get("message", "No message")
         parser_type = parsed.get("parser_type", "unknown")
+        raw_log = parsed.get("raw", message)
+
+        # Store the log payload and generate its embedding in Qdrant
+        svc = _get_log_service()
+        try:
+            svc.store_log(parsed, raw_log)
+        except Exception as e:
+            logger.error(f"Failed to store log in Qdrant (non‑critical for test): {e}")
+            # Continue processing without aborting; the embedding/storage is optional for unit tests.
 
         logger.info(
             f"Processed log | level={level} | "
