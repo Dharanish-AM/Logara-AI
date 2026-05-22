@@ -65,10 +65,23 @@ This helps improve operational visibility while reducing the risk of sensitive d
 
 ### 2026 Roadmap
 
-- [ ] **Q2**: Implementation of OpenTelemetry (OTel) collector integration.
+- [x] **Q2**: Implementation of OpenTelemetry (OTel) collector integration.
 - [ ] **Q2**: Support for persistent vector storage partitioning by 'service_id'.
 - [ ] **Q3**: Beta release of the "Explain Error" hover-state in the dashboard.
 - [ ] **Q4**: Multi-tenant RBAC for enterprise-grade deployments.
+
+## Ingestion API Endpoints
+
+Logara AI provides two main ingestion endpoints:
+
+1. **Standard Ingest (`POST /ingest`)**:
+   - For single, raw log strings.
+   - Body format: `{"log_data": "[2026-05-16 10:30:00] INFO: service started"}`
+
+2. **OpenTelemetry Log Ingest (`POST /v1/logs`)**:
+   - For standard OpenTelemetry (OTLP) log collector HTTP exports.
+   - Accepts standard JSON batches of resource logs, scope logs, and log records.
+   - Automatically merges resource attributes, extracts timestamps/severity levels, and preserves metadata.
 
 ## Getting Started
 

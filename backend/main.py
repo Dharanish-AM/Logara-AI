@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from qdrant_client import QdrantClient
 from utils.parser import LogParser
+from utils.otel import parse_otel_log_payload
 from utils.queue import redis_client
 from utils.redaction import build_default_redactor
 from utils.constants import REDACT_ENABLED, REDACT_PATTERNS, REDACT_IPV4
@@ -131,11 +132,72 @@ async def ingest_logs(log_data: str = Body(..., embed=True)):
         )
 
     return {
-    "status": "success_queued",
-    "parsed": parsed,
-    "metadata": metadata,
-    "redaction_summary": redaction_result.matches
-}
+        "status": "success_queued",
+        "parsed": parsed,
+        "metadata": metadata,
+        "redaction_summary": redaction_result.matches
+    }
+
+
+@app.post("/v1/logs")
+async def ingest_otel_logs(payload: dict = Body(...)):
+    """
+    Accepts batch OpenTelemetry (OTLP) log records, parses and normalizes them,
+    scrubs PII/secrets, and queues each record into Redis for asynchronous processing.
+    """
+    if not payload:
+        raise HTTPException(status_code=400, detail="Empty payload")
+
+    try:
+        records = parse_otel_log_payload(payload)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to parse OTel logs: {str(e)}"
+        )
+
+    if not records:
+        return {
+            "status": "success",
+            "processed_records": 0,
+            "redaction_summary": {}
+        }
+
+    queued_count = 0
+    total_redaction_matches = {}
+
+    for record in records:
+        # Scrub secrets/PII from the main message
+        redact_res = redactor.redact_with_summary(record["message"])
+        record["message"] = redact_res.text
+        record["raw"] = redact_res.text
+
+        # Merge redaction summaries for overall reporting
+        for label, count in redact_res.matches.items():
+            total_redaction_matches[label] = total_redaction_matches.get(label, 0) + count
+
+        # Scrub nested JSON fields recursively
+        record = redactor.redact_dict(record)
+
+        queue_payload = {
+            "parsed": record,
+            "metadata": record.get("metadata", {})
+        }
+
+        try:
+            redis_client.lpush("log_queue", json.dumps(queue_payload))
+            queued_count += 1
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to queue log record at index {queued_count}: {str(e)}"
+            )
+
+    return {
+        "status": "success",
+        "processed_records": queued_count,
+        "redaction_summary": total_redaction_matches
+    }
 
 @app.get("/health", status_code=200)
 async def health_check(response: Response):

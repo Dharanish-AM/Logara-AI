@@ -95,6 +95,9 @@ class LogService:
         message = parsed_log.get(SCHEMA_MESSAGE, "")
         vector = self.get_embedding(message)
 
+        metadata = parsed_log.get(SCHEMA_METADATA, {}) or {}
+        service_id = metadata.get("service") or metadata.get("service.name") or "unknown_service"
+
         payload = {
             "id": log_id,
             SCHEMA_TIMESTAMP: parsed_log.get(SCHEMA_TIMESTAMP),
@@ -102,7 +105,8 @@ class LogService:
             SCHEMA_MESSAGE: message,
             SCHEMA_PARSER_TYPE: parsed_log.get(SCHEMA_PARSER_TYPE),
             SCHEMA_RAW: raw_log,
-            SCHEMA_METADATA: parsed_log.get(SCHEMA_METADATA, {})
+            SCHEMA_METADATA: metadata,
+            "service_id": service_id
         }
 
         point = PointStruct(
@@ -184,6 +188,9 @@ class LogService:
         """
         Perform vector similarity search on logs and use Ollama to synthesize an answer.
         """
+        if limit < 1 or limit > 50:
+            raise ValueError("Result limit must be between 1 and 50")
+
         self._ensure_collection()
         query_vector = self.get_embedding(query)
 
