@@ -24,16 +24,13 @@ class StructuredLogIngestRequest(BaseModel):
 
     @model_validator(mode="after")
     def merge_extra_into_metadata(self):
-        extra = dict(self.model_extra or {})
-        if extra:
-            merged_metadata = dict(self.metadata)
-            merged_metadata.update(extra)
-            self.metadata = merged_metadata
+        if self.model_extra:
+            self.metadata = {**self.metadata, **self.model_extra}
         return self
 
 
 class BatchLogIngestRequest(BaseModel):
-    logs: list[StructuredLogIngestRequest]
+    logs: list[StructuredLogIngestRequest] = Field(min_length=1, max_length=1000)
 
     @model_validator(mode="after")
     def validate_non_empty_batch(self):
@@ -59,13 +56,19 @@ class QueuePayload(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-def parse_ingest_request(payload: dict[str, Any]) -> (
-    LegacyRawLogIngestRequest | StructuredLogIngestRequest | BatchLogIngestRequest
-):
-    if "logs" in payload:
+def parse_ingest_request(
+    payload: dict[str, Any],
+) -> LegacyRawLogIngestRequest | StructuredLogIngestRequest | BatchLogIngestRequest:
+    has_logs = "logs" in payload
+    has_log_data = "log_data" in payload
+
+    if has_logs and has_log_data:
+        raise ValueError("Ambiguous payload: cannot contain both 'logs' and 'log_data'")
+
+    if has_logs:
         return BatchLogIngestRequest.model_validate(payload)
 
-    if "log_data" in payload:
+    if has_log_data:
         return LegacyRawLogIngestRequest.model_validate(payload)
 
     return StructuredLogIngestRequest.model_validate(payload)
@@ -77,8 +80,6 @@ def validation_errors_to_detail(exc: ValidationError) -> list[dict[str, Any]]:
         safe_error = dict(error)
         ctx = safe_error.get("ctx")
         if isinstance(ctx, dict):
-            safe_error["ctx"] = {
-                key: str(value) for key, value in ctx.items()
-            }
+            safe_error["ctx"] = {key: str(value) for key, value in ctx.items()}
         details.append(safe_error)
     return details

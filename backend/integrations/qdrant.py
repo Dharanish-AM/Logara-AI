@@ -22,7 +22,7 @@ class ThreadSafeQdrantClient:
     @property
     def client(self) -> QdrantClient:
         settings = get_settings()
-        if self._client is None or self._last_class is not QdrantClient:
+        if self._client is None or type(self._client) is not QdrantClient:
             with self._lock:
                 if self._client is None or self._last_class is not QdrantClient:
                     self._client = QdrantClient(

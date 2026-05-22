@@ -59,9 +59,19 @@ class IngestionService:
         parsed = LogParser.parse_line(clean_log)
 
         if not parsed:
-            return {
-                "status": "accepted_raw",
+            raw_payload = {
+                "timestamp": None,
+                "level": "INFO",
                 "message": clean_log,
+                "metadata": {},
+                "parser_type": "raw_input",
+                "raw": clean_log,
+            }
+            self._queue_normalized_payload(raw_payload)
+            return {
+                "status": "accepted_raw_queued",
+                "message": clean_log,
+                "redaction_summary": redaction_result.matches,
             }
 
         metadata = parsed.get("metadata", {})

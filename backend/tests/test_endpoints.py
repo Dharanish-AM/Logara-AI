@@ -110,13 +110,16 @@ def test_ingest_whitespace_log():
     assert response.status_code == 400
     assert response.json()["detail"] == "Log message cannot be empty"
 
-def test_ingest_raw_fallback():
+@patch("utils.queue.redis_client.lpush")
+def test_ingest_raw_fallback(mock_lpush):
     response = client.post("/ingest", json={"log_data": "this is not standard log format"})
     assert response.status_code == 200
     assert response.json() == {
-        "status": "accepted_raw",
-        "message": "this is not standard log format"
+        "status": "accepted_raw_queued",
+        "message": "this is not standard log format",
+        "redaction_summary": {},
     }
+    mock_lpush.assert_called_once()
 
 @patch("utils.queue.redis_client.lpush")
 def test_ingest_valid_standard_log(mock_lpush):
