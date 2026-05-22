@@ -51,3 +51,21 @@ def test_ingest_redis_failure(mock_lpush):
     # Assert
     assert response.status_code == 500
     assert "Failed to queue log" in response.json()["detail"]
+
+
+@patch("utils.queue.redis_client.lpush")
+def test_ingest_structured_redis_failure(mock_lpush):
+    mock_lpush.side_effect = Exception("Redis is down")
+
+    response = client.post(
+        "/ingest",
+        json={
+            "timestamp": "2026-05-17 21:16:00",
+            "level": "INFO",
+            "service": "orders",
+            "message": "Something happened",
+        }
+    )
+
+    assert response.status_code == 500
+    assert "Failed to queue log" in response.json()["detail"]
