@@ -38,7 +38,7 @@ def validate_repository_layout(repo_root: Path) -> list[str]:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `.\venv\Scripts\python.exe -m pytest tests/test_deploy_validation.py -q`
-Expected: targeted tests pass after the validation logic is implemented fully.
+Expected: Test passes with the stub. Additional tests in later tasks will drive full implementation.
 
 - [ ] **Step 5: Commit**
 

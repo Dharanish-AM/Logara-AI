@@ -1,0 +1,20 @@
+name: Question or support
+description: Ask a setup, usage, or contribution question.
+title: "[Question]: "
+labels:
+  - question
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      placeholder: How do I start the backend worker locally after running docker compose?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant context
+      description: Share what you already tried and any logs or screenshots that might help.
+      placeholder: I followed CONTRIBUTING.md, started Redis and Qdrant, and the worker exits immediately with ...

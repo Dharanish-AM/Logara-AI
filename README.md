@@ -152,6 +152,14 @@ Current validation covers:
 - Docker Compose configuration validation with `docker compose config`
 - backend smoke checks that import the FastAPI app and worker successfully
 
+Repository governance also includes:
+
+- structured GitHub issue forms and an issue chooser
+- `CODEOWNERS` for automatic reviewer routing
+- Dependabot updates for GitHub Actions, backend Python packages, and frontend npm packages
+- a security audit workflow for GitHub Actions, Python dependencies, and production npm dependencies
+- a branch-protection setup guide in `.github/branch-protection.md`
+
 ## Contributing
 
 We welcome contributions that focus on performance optimizations in the log processing pipeline. Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for our technical standards.

@@ -1,0 +1,78 @@
+name: Bug report
+description: Report a reproducible bug in Logara AI.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Logara AI. Please share enough detail for someone else to reproduce the bug.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly and concisely.
+      placeholder: The ingestion endpoint returns a 500 error when I submit nested JSON logs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the exact steps needed to reproduce the issue.
+      placeholder: |
+        1. Start the backend
+        2. Send a POST request to /ingest with ...
+        3. Observe the error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: The request should return 202 Accepted and enqueue the log.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Backend
+        - Frontend
+        - Infrastructure / CI
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Project version or commit
+      description: Share the version, branch, or commit SHA if known.
+      placeholder: main at 191dd26
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment details
+      description: OS, browser, runtime versions, and anything else relevant.
+      placeholder: |
+        OS: Windows 11
+        Browser: Chrome 136
+        Python: 3.10
+        Node.js: 20
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, screenshots, or extra context
+      description: Add stack traces, screenshots, or other details if available.
