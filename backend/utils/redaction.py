@@ -177,20 +177,18 @@ class Redactor:
 
     def redact_dict(self, data: dict) -> dict:
         """
-        Recursively redact nested dictionary/list string values
-        without mutating the caller's original payload.
+        Recursively redact nested dictionary/list string values.
+        Returns a deep copy with redacted values; original is never modified.
         """
+
         if not self.enabled:
-            return deepcopy(data)
+            return data
 
         def _sanitize(value):
-            if isinstance(value, str):
-                return self.redact(value)
-
             if isinstance(value, dict):
                 return {
-                    k: _sanitize(v)
-                    for k, v in value.items()
+                    key: _sanitize(val)
+                    for key, val in value.items()
                 }
 
             if isinstance(value, list):
@@ -199,9 +197,10 @@ class Redactor:
                     for item in value
                 ]
 
-            return value
+            if isinstance(value, str):
+                return self.redact(value)
 
-     
+            return value
 
         return _sanitize(deepcopy(data))
 
