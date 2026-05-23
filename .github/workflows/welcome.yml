@@ -1,0 +1,46 @@
+name: First Interaction
+
+on:
+  issues:
+    types:
+      - opened
+  pull_request_target:
+    types:
+      - opened
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  welcome:
+    name: Welcome First-Time Contributors
+    runs-on: ubuntu-latest
+    steps:
+      - name: Welcome first-time issue and PR authors
+        uses: actions/first-interaction@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-message: |
+            Thanks for opening your first issue in Logara AI.
+
+            Please make sure you selected the issue form that best matches your topic and included enough detail for the maintainers to reproduce or understand the request quickly.
+
+            Helpful references:
+            - `README.md` for project overview and local setup
+            - `CONTRIBUTING.md` for contribution expectations
+
+            A maintainer will review this when available.
+          pr-message: |
+            Thanks for your first pull request to Logara AI.
+
+            Before review, please make sure:
+            - the PR template is filled out clearly
+            - the relevant local checks have been run
+            - CI has finished successfully
+
+            Helpful references:
+            - `CONTRIBUTING.md` for workflow expectations
+            - `README.md` for setup and validation commands
+
+            We appreciate the contribution and will review it as soon as possible.

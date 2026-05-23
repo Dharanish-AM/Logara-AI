@@ -56,7 +56,6 @@ def test_validate_repository_layout_flags_missing_env_keys(tmp_path):
     (repo_root / ".github" / "dependabot.yml").write_text("version: 2\nupdates: []\n", encoding="utf-8")
     (repo_root / ".github" / "labels.json").write_text("[]\n", encoding="utf-8")
     (repo_root / ".github" / "labeler.yml").write_text("backend: []\n", encoding="utf-8")
-    (repo_root / ".github" / "auto_assign.yml").write_text("addReviewers: true\n", encoding="utf-8")
     (repo_root / ".github" / "commitlint.config.mjs").write_text("export default {}\n", encoding="utf-8")
     (repo_root / ".github" / "ISSUE_TEMPLATE" / "config.yml").write_text(
         "blank_issues_enabled: false\n",
@@ -87,10 +86,6 @@ def test_validate_repository_layout_flags_missing_env_keys(tmp_path):
         encoding="utf-8",
     )
     (repo_root / ".github" / "workflows").mkdir(parents=True)
-    (repo_root / ".github" / "workflows" / "auto-assign.yml").write_text(
-        "name: Auto Assign\n",
-        encoding="utf-8",
-    )
     (repo_root / ".github" / "workflows" / "labeler.yml").write_text(
         "name: Labeler\n",
         encoding="utf-8",
@@ -105,6 +100,10 @@ def test_validate_repository_layout_flags_missing_env_keys(tmp_path):
     )
     (repo_root / ".github" / "workflows" / "sync-labels.yml").write_text(
         "name: Sync Labels\n",
+        encoding="utf-8",
+    )
+    (repo_root / ".github" / "workflows" / "welcome.yml").write_text(
+        "name: Welcome\n",
         encoding="utf-8",
     )
     (repo_root / "backend" / "Dockerfile").write_text("FROM python:3.10-slim\n", encoding="utf-8")
@@ -148,7 +147,6 @@ def test_validate_repository_layout_passes_for_minimal_valid_repo(tmp_path):
     (repo_root / ".github" / "dependabot.yml").write_text("version: 2\nupdates: []\n", encoding="utf-8")
     (repo_root / ".github" / "labels.json").write_text("[]\n", encoding="utf-8")
     (repo_root / ".github" / "labeler.yml").write_text("backend: []\n", encoding="utf-8")
-    (repo_root / ".github" / "auto_assign.yml").write_text("addReviewers: true\n", encoding="utf-8")
     (repo_root / ".github" / "commitlint.config.mjs").write_text("export default {}\n", encoding="utf-8")
     (repo_root / ".github" / "ISSUE_TEMPLATE" / "config.yml").write_text(
         "blank_issues_enabled: false\n",
@@ -179,10 +177,6 @@ def test_validate_repository_layout_passes_for_minimal_valid_repo(tmp_path):
         encoding="utf-8",
     )
     (repo_root / ".github" / "workflows").mkdir(parents=True)
-    (repo_root / ".github" / "workflows" / "auto-assign.yml").write_text(
-        "name: Auto Assign\n",
-        encoding="utf-8",
-    )
     (repo_root / ".github" / "workflows" / "labeler.yml").write_text(
         "name: Labeler\n",
         encoding="utf-8",
@@ -197,6 +191,10 @@ def test_validate_repository_layout_passes_for_minimal_valid_repo(tmp_path):
     )
     (repo_root / ".github" / "workflows" / "sync-labels.yml").write_text(
         "name: Sync Labels\n",
+        encoding="utf-8",
+    )
+    (repo_root / ".github" / "workflows" / "welcome.yml").write_text(
+        "name: Welcome\n",
         encoding="utf-8",
     )
     (repo_root / "backend" / "Dockerfile").write_text("FROM python:3.10-slim\n", encoding="utf-8")
