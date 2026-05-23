@@ -2,6 +2,7 @@ fastapi[standard]
 uvicorn
 python-dotenv
 pydantic
+pydantic-settings
 sqlalchemy
 qdrant-client
 langchain-ollama

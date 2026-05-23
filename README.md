@@ -140,6 +140,14 @@ cp .env.example .env
 
 We welcome contributions that focus on performance optimizations in the log processing pipeline. Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for our technical standards.
 
+## Contributors ✨
+
+Thanks goes to these wonderful people for contributing to this project ❤️
+
+<a href="https://github.com/Dharanish-AM/Logara-AI/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Dharanish-AM/Logara-AI" />
+</a>
+
 ## License
 
 MIT License.

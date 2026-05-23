@@ -10,21 +10,18 @@ def test_root_endpoint():
     assert response.status_code == 200
     assert response.json() == {"message": "Welcome to Logara AI API", "status": "active"}
 
-@patch("main.redis_client.ping")
-@patch("main.QdrantClient")
-@patch("main.httpx.get")
-def test_health_endpoint_all_healthy(mock_httpx, mock_qdrant, mock_redis_ping):
+@patch("services.health.redis_client.ping")
+@patch("services.health.qdrant_client.get_collections")
+@patch("services.health.ollama_client.health_check")
+def test_health_endpoint_all_healthy(mock_ollama_health, mock_qdrant_get_collections, mock_redis_ping):
     # Redis: ping succeeds (no exception)
     mock_redis_ping.return_value = True
 
-    # Qdrant: client instantiates and get_collections() succeeds
-    mock_qdrant_instance = MagicMock()
-    mock_qdrant.return_value = mock_qdrant_instance
+    # Qdrant: get_collections() succeeds
+    mock_qdrant_get_collections.return_value = MagicMock()
 
     # Ollama: returns HTTP 200
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_httpx.return_value = mock_response
+    mock_ollama_health.return_value = {"status_code": 200}
 
     response = client.get("/health")
     assert response.status_code == 200
@@ -35,21 +32,18 @@ def test_health_endpoint_all_healthy(mock_httpx, mock_qdrant, mock_redis_ping):
     assert data["services"]["ollama"]["status"] == "healthy"
 
 
-@patch("main.redis_client.ping")
-@patch("main.QdrantClient")
-@patch("main.httpx.get")
-def test_health_redis_unhealthy(mock_httpx, mock_qdrant, mock_redis_ping):
+@patch("services.health.redis_client.ping")
+@patch("services.health.qdrant_client.get_collections")
+@patch("services.health.ollama_client.health_check")
+def test_health_redis_unhealthy(mock_ollama_health, mock_qdrant_get_collections, mock_redis_ping):
     # Redis: raises ConnectionError
     mock_redis_ping.side_effect = ConnectionError("Redis unreachable")
 
     # Qdrant: healthy
-    mock_qdrant_instance = MagicMock()
-    mock_qdrant.return_value = mock_qdrant_instance
+    mock_qdrant_get_collections.return_value = MagicMock()
 
     # Ollama: healthy
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_httpx.return_value = mock_response
+    mock_ollama_health.return_value = {"status_code": 200}
 
     response = client.get("/health")
     assert response.status_code == 503
@@ -61,22 +55,18 @@ def test_health_redis_unhealthy(mock_httpx, mock_qdrant, mock_redis_ping):
     assert data["services"]["ollama"]["status"] == "healthy"
 
 
-@patch("main.redis_client.ping")
-@patch("main.QdrantClient")
-@patch("main.httpx.get")
-def test_health_qdrant_unhealthy(mock_httpx, mock_qdrant, mock_redis_ping):
+@patch("services.health.redis_client.ping")
+@patch("services.health.qdrant_client.get_collections")
+@patch("services.health.ollama_client.health_check")
+def test_health_qdrant_unhealthy(mock_ollama_health, mock_qdrant_get_collections, mock_redis_ping):
     # Redis: healthy
     mock_redis_ping.return_value = True
 
     # Qdrant: get_collections() raises Exception
-    mock_qdrant_instance = MagicMock()
-    mock_qdrant_instance.get_collections.side_effect = Exception("Qdrant unreachable")
-    mock_qdrant.return_value = mock_qdrant_instance
+    mock_qdrant_get_collections.side_effect = Exception("Qdrant unreachable")
 
     # Ollama: healthy
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_httpx.return_value = mock_response
+    mock_ollama_health.return_value = {"status_code": 200}
 
     response = client.get("/health")
     assert response.status_code == 503
@@ -88,19 +78,18 @@ def test_health_qdrant_unhealthy(mock_httpx, mock_qdrant, mock_redis_ping):
     assert data["services"]["ollama"]["status"] == "healthy"
 
 
-@patch("main.redis_client.ping")
-@patch("main.QdrantClient")
-@patch("main.httpx.get")
-def test_health_ollama_unhealthy(mock_httpx, mock_qdrant, mock_redis_ping):
+@patch("services.health.redis_client.ping")
+@patch("services.health.qdrant_client.get_collections")
+@patch("services.health.ollama_client.health_check")
+def test_health_ollama_unhealthy(mock_ollama_health, mock_qdrant_get_collections, mock_redis_ping):
     # Redis: healthy
     mock_redis_ping.return_value = True
 
     # Qdrant: healthy
-    mock_qdrant_instance = MagicMock()
-    mock_qdrant.return_value = mock_qdrant_instance
+    mock_qdrant_get_collections.return_value = MagicMock()
 
     # Ollama: raises httpx.ConnectError
-    mock_httpx.side_effect = httpx.ConnectError("Ollama unreachable")
+    mock_ollama_health.side_effect = httpx.ConnectError("Ollama unreachable")
 
     response = client.get("/health")
     assert response.status_code == 503
@@ -121,13 +110,16 @@ def test_ingest_whitespace_log():
     assert response.status_code == 400
     assert response.json()["detail"] == "Log message cannot be empty"
 
-def test_ingest_raw_fallback():
+@patch("utils.queue.redis_client.lpush")
+def test_ingest_raw_fallback(mock_lpush):
     response = client.post("/ingest", json={"log_data": "this is not standard log format"})
     assert response.status_code == 200
     assert response.json() == {
-        "status": "accepted_raw",
-        "message": "this is not standard log format"
+        "status": "accepted_raw_queued",
+        "message": "this is not standard log format",
+        "redaction_summary": {},
     }
+    mock_lpush.assert_called_once()
 
 @patch("utils.queue.redis_client.lpush")
 def test_ingest_valid_standard_log(mock_lpush):
@@ -140,7 +132,87 @@ def test_ingest_valid_standard_log(mock_lpush):
     assert data["metadata"]["service"] == "auth-service"
 
 
-@patch("main.log_service.get_logs")
+@patch("utils.queue.redis_client.lpush")
+def test_ingest_structured_log(mock_lpush):
+    response = client.post(
+        "/ingest",
+        json={
+            "timestamp": "2026-05-16 10:30:00",
+            "level": "warning",
+            "service": "auth-service",
+            "host": "host-1",
+            "source": "api-gateway",
+            "message": "User test@example.com login failed",
+            "request_id": "req-123",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success_queued"
+    assert data["parsed"]["timestamp"] == "2026-05-16T10:30:00"
+    assert data["parsed"]["level"] == "WARN"
+    assert data["parsed"]["service"] == "auth-service"
+    assert data["parsed"]["host"] == "host-1"
+    assert data["parsed"]["source"] == "api-gateway"
+    assert data["parsed"]["message"] == "User [REDACTED:EMAIL] login failed"
+    assert data["metadata"]["request_id"] == "req-123"
+    assert data["metadata"]["service"] == "auth-service"
+    assert data["redaction_summary"]["EMAIL"] == 1
+
+    queued_payload = mock_lpush.call_args[0][1]
+    assert "structured_input" in queued_payload
+
+
+@patch("utils.queue.redis_client.lpush")
+def test_ingest_batch_structured_logs(mock_lpush):
+    response = client.post(
+        "/ingest",
+        json={
+            "logs": [
+                {
+                    "timestamp": "2026-05-16T10:30:00Z",
+                    "level": "INFO",
+                    "service": "gateway",
+                    "message": "Service started",
+                },
+                {
+                    "level": "error",
+                    "service": "billing",
+                    "message": "Card 4242 4242 4242 4242 declined",
+                },
+            ]
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["processed_records"] == 2
+    assert data["redaction_summary"]["CREDIT_CARD"] == 1
+    assert mock_lpush.call_count == 2
+
+
+def test_ingest_structured_validation_error():
+    response = client.post(
+        "/ingest",
+        json={
+            "timestamp": "2026-05-16 10:30:00",
+            "level": "INFO",
+            "service": "auth-service",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_ingest_batch_empty_validation_error():
+    response = client.post("/ingest", json={"logs": []})
+    assert response.status_code == 422
+
+
+# ============================================================================
+# Retrieval and Semantic Search Endpoints Tests
+# ============================================================================
+
+@patch("routes.retrieval.LogService.get_logs")
 def test_get_logs_success(mock_get_logs):
     mock_get_logs.return_value = (
         [
@@ -177,7 +249,7 @@ def test_get_logs_invalid_pagination():
     assert "Limit must be between 1 and 100" in response.json()["detail"]
 
 
-@patch("main.log_service.semantic_search")
+@patch("routes.retrieval.LogService.semantic_search")
 def test_semantic_search_success(mock_semantic_search):
     mock_semantic_search.return_value = (
         [

@@ -153,7 +153,7 @@ def test_parse_otel_log_payload_regex_parsing():
     assert rec["parser_type"] == "standard"
 
 
-@patch("main.redis_client.lpush")
+@patch("services.ingestion.redis_client.lpush")
 def test_ingest_otel_logs_endpoint_success(mock_lpush):
     payload = {
         "resourceLogs": [
