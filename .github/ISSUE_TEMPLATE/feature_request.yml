@@ -1,0 +1,63 @@
+name: Feature request
+description: Suggest a new feature or product improvement.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the problem, the desired outcome, and how success should look from a user or contributor perspective.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      placeholder: Contributors do not have automated deploy-readiness checks before merge.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      placeholder: Pull requests should automatically verify backend, frontend, and infrastructure health.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: Add a reusable GitHub Actions workflow plus a pre-deploy workflow for main.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: Manual validation only, a third-party CI provider, or a staged rollout.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Primary area
+      options:
+        - Backend
+        - Frontend
+        - Infrastructure / CI
+        - Documentation
+        - Cross-cutting
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List the conditions that would make this feature complete.
+      placeholder: |
+        - CI runs on pull requests
+        - Failed checks block merge
+        - Docs explain how to use the new workflow

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  detect-changes:
+    if: ${{ github.event_name == 'pull_request' }}
+    name: Detect Changed Areas
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      infrastructure: ${{ steps.filter.outputs.infrastructure }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            infrastructure:
+              - '.github/**'
+              - '.env.example'
+              - 'backend/.env.example'
+              - 'frontend/.env.example'
+              - 'docker-compose.yml'
+              - 'README.md'
+              - 'CONTRIBUTING.md'
+              - 'docs/**'
+            docker:
+              - 'backend/Dockerfile'
+              - 'frontend/Dockerfile'
+              - 'frontend/nginx.conf'
+              - 'docker-compose.yml'
+
+  validate-pr:
+    if: ${{ github.event_name == 'pull_request' }}
+    needs: detect-changes
+    uses: ./.github/workflows/repo-validation.yml
+    with:
+      run_backend: ${{ needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.infrastructure == 'true' }}
+      run_frontend: ${{ needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.infrastructure == 'true' }}
+      run_infrastructure: true
+      run_docker_builds: ${{ needs.detect-changes.outputs.docker == 'true' || needs.detect-changes.outputs.infrastructure == 'true' }}
+      run_integration_tests: ${{ needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.infrastructure == 'true' }}
+      collect_backend_coverage: ${{ needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.infrastructure == 'true' }}
+
+  validate-manual:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    uses: ./.github/workflows/repo-validation.yml
+    with:
+      run_backend: true
+      run_frontend: true
+      run_infrastructure: true
+      run_docker_builds: true
+      run_integration_tests: true
+      collect_backend_coverage: true

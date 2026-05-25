@@ -1,0 +1,42 @@
+name: Improvement
+description: Propose a maintenance, refactor, docs, or workflow improvement.
+title: "[Improvement]: "
+labels:
+  - improvement
+body:
+  - type: textarea
+    id: current_state
+    attributes:
+      label: Current state
+      placeholder: The current issue templates are plain markdown and do not guide contributors well.
+    validations:
+      required: true
+
+  - type: textarea
+    id: change
+    attributes:
+      label: What should improve?
+      placeholder: Replace markdown templates with structured GitHub issue forms and add an issue chooser.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Improvement category
+      options:
+        - CI / CD
+        - Developer experience
+        - Documentation
+        - Testing
+        - Repository governance
+        - Performance
+        - Refactor
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Expected impact
+      placeholder: Cleaner issue triage, more complete bug reports, and less maintainer back-and-forth.

@@ -114,11 +114,11 @@ def test_ingest_whitespace_log():
 def test_ingest_raw_fallback(mock_lpush):
     response = client.post("/ingest", json={"log_data": "this is not standard log format"})
     assert response.status_code == 200
-    assert response.json() == {
-        "status": "accepted_raw_queued",
-        "message": "this is not standard log format",
-        "redaction_summary": {},
-    }
+    res_data = response.json()
+    assert res_data["status"] == "accepted_raw_queued"
+    assert res_data["message"] == "this is not standard log format"
+    assert res_data["redaction_summary"] == {}
+    assert "structured_output" in res_data
     mock_lpush.assert_called_once()
 
 @patch("utils.queue.redis_client.lpush")
@@ -279,3 +279,66 @@ def test_semantic_search_empty_query():
     assert response.status_code == 400
     assert "Search query cannot be empty" in response.json()["detail"]
 
+@patch("integrations.redis.redis_client.lpush")
+def test_batch_ingestion_partial_success(mock_lpush):
+    payload = {
+        "logs": [
+            {
+                "timestamp": "2026-05-20T10:00:00Z",
+                "level": "INFO",
+                "message": "valid log entry",
+            },
+            {
+                "timestamp": "2026-05-20T10:01:00Z",
+                "level": "INFO",
+                "message": "",
+            },
+        ]
+    }
+
+    response = client.post(
+        "/ingest",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "partial_success"
+    assert data["processed_records"] == 1
+    assert data["failed_records"] == 1
+
+    assert len(data["failures"]) == 1
+    assert data["failures"][0]["record_index"] == 1
+
+@patch("integrations.redis.redis_client.lpush")
+def test_batch_ingestion_full_success(mock_lpush):
+    payload = {
+        "logs": [
+            {
+                "timestamp": "2026-05-20T10:00:00Z",
+                "level": "INFO",
+                "message": "service started",
+            },
+            {
+                "timestamp": "2026-05-20T10:01:00Z",
+                "level": "ERROR",
+                "message": "database timeout",
+            },
+        ]
+    }
+
+    response = client.post(
+        "/ingest",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "success"
+    assert data["processed_records"] == 2
+    assert data["failed_records"] == 0
+    assert data["failures"] == []

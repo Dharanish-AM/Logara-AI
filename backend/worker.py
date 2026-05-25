@@ -4,7 +4,7 @@ Log Processor Worker
 Consumes log payloads from the Redis queue and processes them for
 vectorization and storage in Qdrant.
 """
-
+from anomaly.detector import analyze_log
 import json
 import logging
 import os
@@ -54,6 +54,7 @@ def get_qdrant_client() -> QdrantClient:
 def init_qdrant_collection(client: QdrantClient, collection_name: str):
     """
     Ensure the target Qdrant collection exists and is configured for 384-dimensional cosine similarity vectors.
+    Also creates a payload index on the 'service_id' field for partitioning.
     """
     try:
         if not client.collection_exists(collection_name):
@@ -61,6 +62,14 @@ def init_qdrant_collection(client: QdrantClient, collection_name: str):
                 collection_name=collection_name,
                 vectors_config=VectorParams(size=384, distance=Distance.COSINE)
             )
+            try:
+                client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name="service_id",
+                    field_schema="keyword"
+                )
+            except Exception as index_err:
+                logger.error(f"Failed to create payload index on service_id: {index_err}")
     except Exception:
         # Fallback query check for older client libraries
         try:
@@ -70,6 +79,14 @@ def init_qdrant_collection(client: QdrantClient, collection_name: str):
                 collection_name=collection_name,
                 vectors_config=VectorParams(size=384, distance=Distance.COSINE)
             )
+            try:
+                client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name="service_id",
+                    field_schema="keyword"
+                )
+            except Exception as index_err:
+                logger.error(f"Failed to create fallback payload index on service_id: {index_err}")
 
 
 # Lightweight in-memory worker metrics
@@ -143,6 +160,17 @@ def process_log(payload_str: str) -> bool:
             
             # Extract service_id for partitioning
             service_id = metadata.get("service") or metadata.get("service.name") or "unknown_service"
+            anomaly_event = analyze_log(
+                service_id=service_id,
+                level=level,
+                message=message,
+            )
+
+            if anomaly_event:
+                logger.warning(
+                    f"Critical anomaly detected: "
+                    f"{anomaly_event.model_dump_json()}"
+                )
 
             payload = {
                 "timestamp": timestamp,

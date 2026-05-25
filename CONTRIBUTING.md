@@ -54,6 +54,7 @@ As a GSSoC (GirlScript Summer of Code) project, we especially welcome first-time
 
 - Look for issues with labels like `good first issue`, `beginner`, or `help wanted`.
 - If you'd like to work on an issue, please comment on it to let us know. We'll assign it to you.
+- When opening a new issue, use the structured GitHub issue form that best matches your topic.
 
 ### Submitting a Pull Request (PR)
 
@@ -62,6 +63,8 @@ As a GSSoC (GirlScript Summer of Code) project, we especially welcome first-time
 3. **Commit clearly**: Use descriptive commit messages.
 4. **Submit PR**: Open a PR from your branch to the `main` branch of `Logara-AI`.
 5. **Describe your changes**: Use the PR template to explain what you've done.
+6. **Wait for required checks**: CI and security workflows must pass before merge.
+7. **Follow naming conventions**: Pull request titles and commit messages should follow conventional commit style such as `feat:`, `fix:`, `docs:`, or `ci:`.
 
 ---
 

@@ -38,6 +38,20 @@ class IngestionService:
     def __init__(self, redactor: Redactor):
         self.redactor = redactor
 
+    # ---------------------------
+    # 🔥 NEW FEATURE ADDED HERE
+    # ---------------------------
+    def format_ai_response(self, message: str) -> dict:
+        """
+        Convert raw log into structured AI explanation format
+        """
+        return {
+            "Problem Summary": f"Detected issue in logs: {message[:120]}",
+            "Possible Cause": "System error, timeout, invalid request, or service failure.",
+            "Affected Component": "Backend ingestion pipeline / API / service layer",
+            "Suggested Fix": "Check logs, validate input, monitor service health, and retry request."
+        }
+
     def ingest_request(
         self,
         request_model: LegacyRawLogIngestRequest | StructuredLogIngestRequest | BatchLogIngestRequest,
@@ -58,6 +72,7 @@ class IngestionService:
         clean_log = redaction_result.text
         parsed = LogParser.parse_line(clean_log)
 
+        # ---------------- RAW FALLBACK ----------------
         if not parsed:
             raw_payload = {
                 "timestamp": None,
@@ -67,57 +82,113 @@ class IngestionService:
                 "parser_type": "raw_input",
                 "raw": clean_log,
             }
+
             self._queue_normalized_payload(raw_payload)
+
+            structured_output = self.format_ai_response(clean_log)
+
             return {
                 "status": "accepted_raw_queued",
                 "message": clean_log,
+                "structured_output": structured_output,
                 "redaction_summary": redaction_result.matches,
             }
 
         metadata = parsed.get("metadata", {})
         parsed = self.redactor.redact_dict(parsed)
+
         self._queue_normalized_payload(parsed)
+
+        structured_output = self.format_ai_response(clean_log)
 
         return {
             "status": "success_queued",
             "parsed": parsed,
+            "structured_output": structured_output,
             "metadata": metadata,
             "redaction_summary": redaction_result.matches,
         }
 
-    def ingest_structured_log(self, request_model: StructuredLogIngestRequest) -> dict[str, Any]:
-        normalized_log, redaction_summary = self._normalize_structured_log(request_model)
+    def ingest_structured_log(
+        self,
+        request_model: StructuredLogIngestRequest,
+    ) -> dict[str, Any]:
+
+        normalized_log, redaction_summary = self._normalize_structured_log(
+            request_model
+        )
+
         self._queue_normalized_payload(normalized_log.model_dump())
+
+        structured_output = self.format_ai_response(normalized_log.message)
+
         return {
             "status": "success_queued",
             "parsed": normalized_log.model_dump(),
+            "structured_output": structured_output,
             "metadata": normalized_log.metadata,
             "redaction_summary": redaction_summary,
         }
 
-    def ingest_batch_logs(self, logs: list[StructuredLogIngestRequest]) -> dict[str, Any]:
+    def ingest_batch_logs(
+        self,
+        logs: list[StructuredLogIngestRequest],
+    ) -> dict[str, Any]:
+
         processed_records = 0
+        failed_records = 0
+
+        failures: list[dict[str, Any]] = []
+
         total_redaction_summary: dict[str, int] = {}
 
-        for log in logs:
-            normalized_log, redaction_summary = self._normalize_structured_log(log)
-            self._queue_normalized_payload(normalized_log.model_dump())
-            processed_records += 1
-            for key, value in redaction_summary.items():
-                total_redaction_summary[key] = total_redaction_summary.get(key, 0) + value
+        for index, log in enumerate(logs):
+            try:
+                normalized_log, redaction_summary = (
+                    self._normalize_structured_log(log)
+                )
+
+                self._queue_normalized_payload(
+                    normalized_log.model_dump()
+                )
+
+                processed_records += 1
+
+                for key, value in redaction_summary.items():
+                    total_redaction_summary[key] = (
+                        total_redaction_summary.get(key, 0) + value
+                    )
+
+            except Exception as exc:
+                failed_records += 1
+
+                failures.append({
+                    "record_index": index,
+                    "error": str(exc),
+                })
+
+        status = (
+            "success"
+            if failed_records == 0
+            else "partial_success"
+        )
 
         return {
-            "status": "success",
+            "status": status,
             "processed_records": processed_records,
+            "failed_records": failed_records,
+            "failures": failures,
             "redaction_summary": total_redaction_summary,
+            "fallback_used": False,
         }
-
+      
     def ingest_otel_logs(self, payload: dict[str, Any]) -> dict[str, Any]:
         if not payload:
             raise HTTPException(status_code=400, detail="Empty payload")
 
         try:
             records = parse_otel_log_payload(payload)
+
         except Exception as exc:
             raise HTTPException(
                 status_code=400,
@@ -127,8 +198,10 @@ class IngestionService:
         if not records:
             return {
                 "status": "success",
+                "message": "No logs found in payload",
                 "processed_records": 0,
                 "redaction_summary": {},
+                "fallback_used": True,
             }
 
         queued_count = 0
@@ -136,62 +209,102 @@ class IngestionService:
 
         for record in records:
             redact_res = self.redactor.redact_with_summary(record["message"])
+
             record["message"] = redact_res.text
             record["raw"] = redact_res.text
 
             for label, count in redact_res.matches.items():
-                total_redaction_matches[label] = total_redaction_matches.get(label, 0) + count
+                total_redaction_matches[label] = (
+                    total_redaction_matches.get(label, 0) + count
+                )
 
             record = self.redactor.redact_dict(record)
+
             self._queue_normalized_payload(record)
+
             queued_count += 1
 
         return {
             "status": "success",
+            "message": "OTel logs processed successfully",
             "processed_records": queued_count,
             "redaction_summary": total_redaction_matches,
+            "fallback_used": False,
         }
 
     def _normalize_structured_log(
         self,
         request_model: StructuredLogIngestRequest,
     ) -> tuple[NormalizedLog, dict[str, int]]:
-        if not request_model.message or not request_model.message.strip():
-            raise HTTPException(status_code=400, detail="Log message cannot be empty")
 
-        redaction_result = self.redactor.redact_with_summary(request_model.message)
+        if not request_model.message or not request_model.message.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Log message cannot be empty",
+            )
+
+        redaction_result = self.redactor.redact_with_summary(
+            request_model.message
+        )
+
         clean_message = redaction_result.text
 
         metadata = dict(request_model.metadata)
+
         if request_model.service:
             metadata["service"] = request_model.service
+
         if request_model.host:
             metadata["host"] = request_model.host
+
         if request_model.source:
             metadata["source"] = request_model.source
 
         normalized_log = NormalizedLog(
-            timestamp=normalize_timestamp(request_model.timestamp or "") or request_model.timestamp,
+            timestamp=normalize_timestamp(
+                request_model.timestamp or ""
+            ) or request_model.timestamp,
+
             level=self._normalize_level(request_model.level),
+
             service=request_model.service,
+
             host=request_model.host,
+
             message=clean_message,
+
             source=request_model.source,
+
             metadata=self.redactor.redact_dict(metadata),
+
             parser_type="structured_input",
-            raw=json.dumps(request_model.model_dump(mode="json"), default=str),
+
+            raw=json.dumps(
+                request_model.model_dump(mode="json"),
+                default=str,
+            ),
         )
 
         return normalized_log, redaction_result.matches
 
-    def _queue_normalized_payload(self, parsed: dict[str, Any]) -> None:
-        payload = QueuePayload(parsed=parsed, metadata=parsed.get("metadata", {}))
+    def _queue_normalized_payload(
+        self,
+        parsed: dict[str, Any],
+    ) -> None:
+
+        payload = QueuePayload(
+            parsed=parsed,
+            metadata=parsed.get("metadata", {}),
+        )
+
         settings = get_settings()
+
         try:
             redis_client.lpush(
                 settings.redis_queue_name,
                 json.dumps(payload.model_dump()),
             )
+
         except Exception as exc:
             raise HTTPException(
                 status_code=500,
@@ -204,6 +317,8 @@ class IngestionService:
             return "INFO"
 
         normalized = level.upper().strip()
+
         if normalized == "WARNING":
             return "WARN"
+
         return normalized if normalized in VALID_LEVELS else "INFO"

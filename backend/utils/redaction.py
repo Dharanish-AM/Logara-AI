@@ -4,7 +4,7 @@ they reach the parser, queue, or downstream services.
 """
 
 import re
-
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Pattern
 
@@ -177,28 +177,33 @@ class Redactor:
 
     def redact_dict(self, data: dict) -> dict:
         """
-        Recursively redact nested dictionary/list string values.
+        Recursively redact nested dictionary/list string values
+        without mutating the caller's original payload.
         """
         if not self.enabled:
-            return data
+            return deepcopy(data)
 
-        for key, value in data.items():
+        def _sanitize(value):
             if isinstance(value, str):
-                data[key] = self.redact(value)
+                return self.redact(value)
 
-            elif isinstance(value, dict):
-                self.redact_dict(value)
+            if isinstance(value, dict):
+                return {
+                    k: _sanitize(v)
+                    for k, v in value.items()
+                }
 
-            elif isinstance(value, list):
-                data[key] = [
-                    self.redact(v) if isinstance(v, str)
-                    else self.redact_dict(v)
-                    if isinstance(v, dict)
-                    else v
-                    for v in value
+            if isinstance(value, list):
+                return [
+                    _sanitize(item)
+                    for item in value
                 ]
 
-        return data
+            return value
+
+     
+
+        return _sanitize(deepcopy(data))
 
 
 def build_default_redactor(

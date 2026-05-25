@@ -1,0 +1,52 @@
+[
+  {
+    "name": "backend",
+    "color": "0e8a16",
+    "description": "Backend application changes or issues"
+  },
+  {
+    "name": "frontend",
+    "color": "1d76db",
+    "description": "Frontend application changes or issues"
+  },
+  {
+    "name": "infrastructure",
+    "color": "5319e7",
+    "description": "CI, CD, Docker, or repository automation work"
+  },
+  {
+    "name": "documentation",
+    "color": "0075ca",
+    "description": "Documentation-only changes or requests"
+  },
+  {
+    "name": "bug",
+    "color": "d73a4a",
+    "description": "Something is not working"
+  },
+  {
+    "name": "enhancement",
+    "color": "a2eeef",
+    "description": "New feature or improvement request"
+  },
+  {
+    "name": "improvement",
+    "color": "c5def5",
+    "description": "Maintenance or workflow improvement"
+  },
+  {
+    "name": "question",
+    "color": "d876e3",
+    "description": "Usage or contribution question"
+  },
+  {
+    "name": "dependencies",
+    "color": "0366d6",
+    "description": "Dependency updates"
+  },
+  {
+    "name": "github-actions",
+    "color": "000000",
+    "description": "GitHub Actions related changes"
+  }
+]

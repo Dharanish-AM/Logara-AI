@@ -77,19 +77,25 @@ def test_ipv4_when_enabled():
 
 def test_redact_dict_walks_nested_values():
     r = build_default_redactor()
+
     data = {
         "user": {"email": "alice@example.com"},
         "headers": {"Authorization": "Bearer abc123def456ghi789jkl012"},
         "level": "ERROR",
         "tags": ["sk-abcdef1234567890abcdef", "normal-tag"],
     }
-    r.redact_dict(data)
-    assert "[REDACTED:EMAIL]" in data["user"]["email"]
-    assert "[REDACTED:BEARER]" in data["headers"]["Authorization"]
-    assert data["level"] == "ERROR"
-    assert "[REDACTED:API_KEY]" in data["tags"][0]
-    assert data["tags"][1] == "normal-tag"
 
+    redacted = r.redact_dict(data)
+
+    # Original input should remain unchanged
+    assert data["user"]["email"] == "alice@example.com"
+
+    # Returned payload should contain sanitized values
+    assert "[REDACTED:EMAIL]" in redacted["user"]["email"]
+    assert "[REDACTED:BEARER]" in redacted["headers"]["Authorization"]
+    assert redacted["level"] == "ERROR"
+    assert "[REDACTED:API_KEY]" in redacted["tags"][0]
+    assert redacted["tags"][1] == "normal-tag"
 
 def test_redact_dict_disabled_returns_unchanged():
     r = build_default_redactor(enabled=False)
@@ -170,3 +176,63 @@ def test_no_redactions_do_not_increment_metrics():
 
     assert REDACTION_METRICS["total_redactions"] == 0
     assert REDACTION_METRICS["payloads_sanitized"] == 0
+
+def test_redact_dict_does_not_mutate_original_payload():
+    r = build_default_redactor()
+
+    original = {
+        "user": {
+            "email": "alice@example.com"
+        }
+    }
+
+    original_snapshot = {
+        "user": {
+            "email": "alice@example.com"
+        }
+    }
+
+    redacted = r.redact_dict(original)
+
+    # Original object must remain unchanged
+    assert original == original_snapshot
+
+    # Returned structure must contain redacted value
+    assert "[REDACTED:EMAIL]" in redacted["user"]["email"]
+
+
+def test_redact_dict_returns_new_object():
+    r = build_default_redactor()
+
+    data = {
+        "email": "alice@example.com"
+    }
+
+    redacted = r.redact_dict(data)
+
+    assert redacted is not data
+
+
+def test_redact_dict_nested_lists_preserve_immutability():
+    r = build_default_redactor()
+
+    original = {
+        "items": [
+            {"token": "sk-abcdef1234567890abcdef"}
+        ]
+    }
+
+    snapshot = {
+        "items": [
+            {"token": "sk-abcdef1234567890abcdef"}
+        ]
+    }
+
+    redacted = r.redact_dict(original)
+
+    assert original == snapshot
+
+    assert (
+        "[REDACTED:API_KEY]"
+        in redacted["items"][0]["token"]
+    )
