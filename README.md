@@ -66,7 +66,7 @@ This helps improve operational visibility while reducing the risk of sensitive d
 ### 2026 Roadmap
 
 - [x] **Q2**: Implementation of OpenTelemetry (OTel) collector integration.
-- [ ] **Q2**: Support for persistent vector storage partitioning by 'service_id'.
+- [x] **Q2**: Support for persistent vector storage partitioning by 'service_id'.
 - [ ] **Q3**: Beta release of the "Explain Error" hover-state in the dashboard.
 - [ ] **Q4**: Multi-tenant RBAC for enterprise-grade deployments.
 

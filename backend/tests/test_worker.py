@@ -189,3 +189,31 @@ def test_run_worker_single_iteration(mock_brpop, mock_process_log):
     mock_process_log.assert_called_once_with(
         '{"test": "data"}'
     )
+
+
+def test_init_qdrant_collection_creates_index():
+    from worker import init_qdrant_collection
+    mock_client = MagicMock()
+    
+    # Test case 1: Collection does not exist
+    mock_client.collection_exists.return_value = False
+    init_qdrant_collection(mock_client, "test_collection")
+    
+    mock_client.create_collection.assert_called_once()
+    mock_client.create_payload_index.assert_called_once_with(
+        collection_name="test_collection",
+        field_name="service_id",
+        field_schema="keyword"
+    )
+
+
+def test_init_qdrant_collection_already_exists():
+    from worker import init_qdrant_collection
+    mock_client = MagicMock()
+    
+    # Test case 2: Collection exists
+    mock_client.collection_exists.return_value = True
+    init_qdrant_collection(mock_client, "test_collection")
+    
+    mock_client.create_collection.assert_not_called()
+    mock_client.create_payload_index.assert_not_called()
