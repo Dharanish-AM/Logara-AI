@@ -4,7 +4,7 @@ Log Processor Worker
 Consumes log payloads from the Redis queue and processes them for
 future vectorization and LLM analysis workflows.
 """
-
+from anomaly.detector import analyze_log
 import json
 import logging
 import os
@@ -143,6 +143,17 @@ def process_log(payload_str: str) -> bool:
             
             # Extract service_id for partitioning
             service_id = metadata.get("service") or metadata.get("service.name") or "unknown_service"
+            anomaly_event = analyze_log(
+                service_id=service_id,
+                level=level,
+                message=message,
+            )
+
+            if anomaly_event:
+                logger.warning(
+                    f"Critical anomaly detected: "
+                    f"{anomaly_event.model_dump_json()}"
+                )
 
             payload = {
                 "timestamp": timestamp,
