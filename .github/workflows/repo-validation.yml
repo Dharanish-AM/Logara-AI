@@ -174,7 +174,7 @@ jobs:
         ports:
           - 6333:6333
         options: >-
-          --health-cmd "wget --spider -q http://localhost:6333/healthz || exit 1"
+          --health-cmd "curl -sf http://localhost:6333/readyz"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 15
