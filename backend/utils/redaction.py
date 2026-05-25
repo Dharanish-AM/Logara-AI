@@ -2,9 +2,9 @@
 redaction.py - Scrub common secrets and PII from log strings before
 they reach the parser, queue, or downstream services.
 """
-from copy import deepcopy
+
 import re
-import copy
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Pattern
 
@@ -64,7 +64,6 @@ IPV4_RULE = RedactionRule(
     ),
 )
 
-# Lightweight redaction metrics
 REDACTION_METRICS = {
     "total_redactions": 0,
     "payloads_sanitized": 0
@@ -77,9 +76,6 @@ def _increment_metric(metric: str):
 
 
 def _luhn_valid(digits: str) -> bool:
-    """
-    Reduce credit-card false positives.
-    """
     digits = re.sub(r"\D", "", digits)
 
     if not 13 <= len(digits) <= 19:
@@ -111,20 +107,12 @@ class Redactor:
         self.enabled = enabled
 
     def redact(self, text: str) -> str:
-        """
-        Backward-compatible helper that returns only
-        the redacted text.
-        """
         return self.redact_with_summary(text).text
 
     def redact_with_summary(
         self,
         text: str
     ) -> RedactionResult:
-        """
-        Redact text while tracking rule match summaries
-        and lightweight metrics.
-        """
         if not self.enabled or not text:
             return RedactionResult(text=text)
 
@@ -174,7 +162,7 @@ class Redactor:
             text=text,
             matches=matches
         )
-    
+
     def redact_dict(self, data: dict) -> dict:
         """
         Recursively redact nested dictionary/list string values.
@@ -201,14 +189,12 @@ class Redactor:
 
         return walk(deepcopy(data))
 
+
 def build_default_redactor(
     enabled: bool = True,
     pattern_names: list[str] | None = None,
     include_ipv4: bool = False,
 ) -> Redactor:
-    """
-    Build a Redactor from default rules.
-    """
     rules = list(DEFAULT_RULES)
 
     if include_ipv4:
