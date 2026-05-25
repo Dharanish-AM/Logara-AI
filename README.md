@@ -24,12 +24,15 @@ graph TD
     subgraph "Processing Layer"
     C --> D[Log Processor]
     D --> E[(Qdrant Vector DB)]
-    D --> F[Ollama / LLM Engine]
+    end
+
+    subgraph "AI Engine"
+    E --> I[AI Engine Service]
+    J[Ollama Local LLM] <--> I
     end
 
     subgraph "Interface"
-    E --> G[GraphQL/REST API]
-    F --> G
+    I --> G[GraphQL/REST API]
     G --> H[React Dashboard]
     end
 ```
@@ -67,6 +70,7 @@ This helps improve operational visibility while reducing the risk of sensitive d
 
 - [x] **Q2**: Implementation of OpenTelemetry (OTel) collector integration.
 - [x] **Q2**: Support for persistent vector storage partitioning by 'service_id'.
+- [x] **Q3**: AI Engine microservice foundation for Semantic Search and RAG pipelines.
 - [ ] **Q3**: Beta release of the "Explain Error" hover-state in the dashboard.
 - [ ] **Q4**: Multi-tenant RBAC for enterprise-grade deployments.
 
@@ -128,7 +132,19 @@ cp .env.example .env
    python worker.py
    ```
 
-4. **Frontend**:
+4. **AI Engine Service**:
+
+   ```bash
+   cd ai-engine
+   python -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+
+   # Start the AI Engine on port 8001
+   uvicorn main:app --port 8001
+   ```
+
+5. **Frontend**:
 
    ```bash
    cd frontend
