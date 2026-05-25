@@ -54,7 +54,8 @@ def test_zulu_timestamp_normalization():
     parsed = LogParser.parse_line(log)
 
     assert parsed is not None
-    assert parsed["timestamp"] == "2026-05-16T14:24:49"
+    # Z is normalized to +00:00 for ISO 8601 compliance
+    assert parsed["timestamp"] == "2026-05-16T14:24:49+00:00"
 
 
 def test_json_structured_log_parsing():
