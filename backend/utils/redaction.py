@@ -201,6 +201,8 @@ class Redactor:
 
             return value
 
+     
+
         return _sanitize(deepcopy(data))
 
 

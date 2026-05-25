@@ -206,3 +206,67 @@ def test_ingest_structured_validation_error():
 def test_ingest_batch_empty_validation_error():
     response = client.post("/ingest", json={"logs": []})
     assert response.status_code == 422
+
+@patch("integrations.redis.redis_client.lpush")
+def test_batch_ingestion_partial_success(mock_lpush):
+    payload = {
+        "logs": [
+            {
+                "timestamp": "2026-05-20T10:00:00Z",
+                "level": "INFO",
+                "message": "valid log entry",
+            },
+            {
+                "timestamp": "2026-05-20T10:01:00Z",
+                "level": "INFO",
+                "message": "",
+            },
+        ]
+    }
+
+    response = client.post(
+        "/ingest",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "partial_success"
+    assert data["processed_records"] == 1
+    assert data["failed_records"] == 1
+
+    assert len(data["failures"]) == 1
+    assert data["failures"][0]["record_index"] == 1
+
+@patch("integrations.redis.redis_client.lpush")
+def test_batch_ingestion_full_success(mock_lpush):
+    payload = {
+        "logs": [
+            {
+                "timestamp": "2026-05-20T10:00:00Z",
+                "level": "INFO",
+                "message": "service started",
+            },
+            {
+                "timestamp": "2026-05-20T10:01:00Z",
+                "level": "ERROR",
+                "message": "database timeout",
+            },
+        ]
+    }
+
+    response = client.post(
+        "/ingest",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "success"
+    assert data["processed_records"] == 2
+    assert data["failed_records"] == 0
+    assert data["failures"] == []
