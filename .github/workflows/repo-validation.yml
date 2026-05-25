@@ -177,8 +177,8 @@ jobs:
           --health-cmd "wget --spider -q http://localhost:6333/healthz || exit 1"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 12
-          --health-start-period 60s
+          --health-retries 15
+          --health-start-period 90s
     env:
       ENABLE_LIVE_SERVICE_TESTS: "1"
       REDIS_HOST: 127.0.0.1
