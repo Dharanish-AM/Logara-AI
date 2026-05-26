@@ -4,7 +4,7 @@ Ingestion routes.
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import ValidationError
-
+from utils.parser import PARSER_METRICS
 from core.settings import get_settings
 from schemas.ingestion import parse_ingest_request, validation_errors_to_detail
 from services.ingestion import IngestionService
@@ -48,3 +48,9 @@ async def ingest_otel_logs(
     ingestion_service: IngestionService = Depends(get_ingestion_service),
 ):
     return ingestion_service.ingest_otel_logs(payload)
+
+@router.get("/metrics/parser")
+async def parser_metrics():
+    return {
+        "parser_metrics": PARSER_METRICS
+    }
