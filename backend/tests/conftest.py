@@ -43,7 +43,7 @@ def pytest_configure(config: pytest.Config) -> None:
     logging.getLogger("faker").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)
 
-    logging.info("🚀 Logara AI Test Session Initialized.")
+    logging.info("[STARTUP] Logara AI Test Session Initialized.")
 
 
 # -------------------------------------------------------------------------

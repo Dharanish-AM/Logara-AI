@@ -41,6 +41,7 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_health_path: str = "/api/tags"
+    ollama_default_model: str = "llama3"
     health_timeout_seconds: float = 3.0
 
     redact_enabled: bool = True

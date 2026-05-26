@@ -11,7 +11,9 @@ from core.settings import get_settings
 from integrations.qdrant import qdrant_client
 from routes.health import router as health_router
 from routes.ingestion import router as ingestion_router
+from routes.ai import router as ai_router
 from services.ingestion import IngestionService
+from utils.ollama_manager import OllamaModelManager
 from utils.redaction import build_default_redactor
 
 
@@ -25,6 +27,11 @@ async def lifespan(app: FastAPI):
             include_ipv4=settings.redact_ipv4,
         )
     )
+    
+    # Initialize Ollama manager for model bootstrap
+    app.state.ollama_manager = OllamaModelManager()
+    await app.state.ollama_manager.bootstrap()
+    
     yield
     qdrant_client.close()
 
@@ -62,5 +69,6 @@ def create_app() -> FastAPI:
 
     app.include_router(ingestion_router)
     app.include_router(health_router)
+    app.include_router(ai_router)
 
     return app
