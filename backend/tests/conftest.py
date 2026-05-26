@@ -43,7 +43,7 @@ def pytest_configure(config: pytest.Config) -> None:
     logging.getLogger("faker").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)
 
-    logging.info("🚀 Logara AI Test Session Initialized.")
+    logging.info("[STARTUP] Logara AI Test Session Initialized.")
 
 
 # -------------------------------------------------------------------------
@@ -138,4 +138,8 @@ def missing_fields_log_entry() -> Dict[str, Any]:
 # -------------------------------------------------------------------------
 @pytest.fixture
 def anyio_backend() -> str:
+    """
+    Configuration for AnyIO, enabling asynchronous testing support for FastAPI 
+    routers and async background tasks. Defaults to using asyncio.
+    """
     return "asyncio"

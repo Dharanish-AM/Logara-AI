@@ -4,7 +4,18 @@ Redis client integration layer.
 
 import logging
 
-import redis
+try:
+    import redis
+except ImportError:  # pragma: no cover
+    class _RedisFallback:
+        class RedisError(Exception):
+            pass
+
+        class Redis:
+            def __init__(self, *args, **kwargs):
+                raise RuntimeError("redis package is not installed")
+
+    redis = _RedisFallback()
 
 from core.settings import get_settings
 

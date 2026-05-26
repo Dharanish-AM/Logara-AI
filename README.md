@@ -66,6 +66,111 @@ The backend ingestion pipeline also supports:
 
 This helps improve operational visibility while reducing the risk of sensitive data exposure during observability workflows.
 
+### Semantic Duplicate Clustering
+
+The backend now supports semantic duplicate detection and clustering in the async worker pipeline.
+
+- Embeddings are generated from a normalized semantic text representation.
+- The worker searches the `log_clusters` collection for the nearest semantic match.
+- Logs above the configured similarity threshold are attached to an existing cluster.
+- New logs create a fresh cluster and are persisted as a raw vector point for downstream search.
+
+#### Configurable settings
+
+- `DUPLICATE_SIMILARITY_THRESHOLD` (default: `0.92`)
+- `MAX_CLUSTER_SAMPLE_SIZE` (default: `5`)
+- `ENABLE_DUPLICATE_CLUSTERING` (default: `true`)
+- `QDRANT_CLUSTER_COLLECTION` (default: `log_clusters`)
+
+#### Example behavior
+
+Input logs:
+
+- `ERROR: Database timeout for user 123`
+- `ERROR: Database timeout for user 456`
+- `ERROR: Database timeout for user 789`
+
+These are normalized into the same semantic cluster, and the cluster metadata is updated with a higher `occurrence_count` and refreshed `last_seen` timestamp.
+
+#### Example cluster payloads
+
+The worker persists cluster metadata in the `log_clusters` collection, and the dashboard-ready payload shape is:
+
+```json
+{
+  "cluster_id": "cluster-123",
+  "representative_log": "ERROR: Database timeout for user 123",
+  "occurrence_count": 3,
+  "first_seen": "2026-05-22T10:00:00Z",
+  "last_seen": "2026-05-22T10:02:00Z",
+  "sample_logs": [
+    "ERROR: Database timeout for user 123",
+    "ERROR: Database timeout for user 456",
+    "ERROR: Database timeout for user 789"
+  ],
+  "similarity_score_average": 0.95,
+  "service_name": "payments-service",
+  "cluster_summary": "Error cluster: database timeout",
+  "duplicate_reduction_percentage": 20.0,
+  "visualization_metadata": {
+    "status": "duplicate",
+    "severity": "error",
+    "service_name": "payments-service",
+    "occurrence_count": 3,
+    "cluster_label": "error-database-timeout",
+    "sample_count": 3
+  },
+  "cluster_label": "error-database-timeout",
+  "is_cluster": true
+}
+```
+
+The worker also produces a lightweight decision payload during ingestion:
+
+```json
+{
+  "cluster_id": "cluster-123",
+  "is_duplicate": true,
+  "similarity_score": 0.95,
+  "occurrence_count": 3,
+  "representative_log": "ERROR: Database timeout for user 123",
+  "first_seen": "2026-05-22T10:00:00Z",
+  "last_seen": "2026-05-22T10:02:00Z",
+  "sample_logs": [
+    "ERROR: Database timeout for user 123",
+    "ERROR: Database timeout for user 456",
+    "ERROR: Database timeout for user 789"
+  ]
+}
+```
+
+#### Qdrant collection strategy
+
+The clustering pipeline uses two Qdrant collections:
+
+- `logs`: stores the raw log vectors for downstream semantic search.
+- `log_clusters`: stores cluster vectors and metadata for nearest-neighbor duplicate grouping.
+
+Recommended defaults:
+
+- `QDRANT_CLUSTER_COLLECTION=log_clusters`
+- `DUPLICATE_SIMILARITY_THRESHOLD=0.92`
+- `MAX_CLUSTER_SAMPLE_SIZE=5`
+
+Operational guidance:
+
+- Keep `logs` as the high-volume searchable collection for raw log events.
+- Keep `log_clusters` as the lower-volume semantic aggregation collection.
+- Use the same embedding model for both collections so cosine search stays comparable.
+- If you increase `MAX_CLUSTER_SAMPLE_SIZE`, expect slightly larger payloads in `log_clusters`.
+
+#### Performance and tuning notes
+
+- The duplicate-clustering path is intentionally lightweight: it performs a single nearest-neighbor search before deciding whether to upsert a new cluster.
+- Set `ENABLE_DUPLICATE_CLUSTERING=false` during cold-starts or when you want to disable semantic aggregation while keeping raw log ingestion intact.
+- Lower `DUPLICATE_SIMILARITY_THRESHOLD` to make clustering more aggressive; raise it to be stricter and reduce false merges.
+- The duplicate reduction percentage is computed as `((occurrence_count - 1) / total_logs) * 100`, capped at `100.0`.
+
 ### 2026 Roadmap
 
 - [x] **Q2**: Implementation of OpenTelemetry (OTel) collector integration.
@@ -87,14 +192,138 @@ Logara AI provides two main ingestion endpoints:
    - Accepts standard JSON batches of resource logs, scope logs, and log records.
    - Automatically merges resource attributes, extracts timestamps/severity levels, and preserves metadata.
 
-## Getting Started
+### `POST /ingest` examples
 
-### Prerequisites
+#### Raw log input
 
-- Python 3.10+
-- Node.js 20+
-- Docker & Docker Compose (for Qdrant & Redis)
+```bash
+curl -X POST http://localhost:8000/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"log_data": "ERROR: Database timeout for user 123"}'
+```
 
+Example response:
+
+```json
+{
+  "status": "success_queued",
+  "parsed": {
+    "timestamp": null,
+    "level": "ERROR",
+    "service": null,
+    "host": null,
+    "message": "ERROR: Database timeout for user 123",
+    "source": null,
+    "metadata": {},
+    "parser_type": "structured_input",
+    "raw": "ERROR: Database timeout for user 123"
+  },
+  "structured_output": {
+    "Problem Summary": "Detected issue in logs: ERROR: Database timeout for user 123",
+    "Possible Cause": "System error, timeout, invalid request, or service failure.",
+    "Affected Component": "Backend ingestion pipeline / API / service layer",
+    "Suggested Fix": "Check logs, validate input, monitor service health, and retry request."
+  },
+  "metadata": {},
+  "redaction_summary": {}
+}
+```
+
+#### Structured log input
+
+```bash
+curl -X POST http://localhost:8000/ingest \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timestamp": "2026-05-26T10:00:00Z",
+    "level": "ERROR",
+    "service": "payments-service",
+    "message": "Database timeout for user 123",
+    "source": "api",
+    "metadata": {
+      "request_id": "req-123"
+    }
+  }'
+```
+
+Example response:
+
+```json
+{
+  "status": "success_queued",
+  "parsed": {
+    "timestamp": "2026-05-26T10:00:00Z",
+    "level": "ERROR",
+    "service": "payments-service",
+    "host": null,
+    "message": "Database timeout for user 123",
+    "source": "api",
+    "metadata": {
+      "request_id": "req-123"
+    },
+    "parser_type": "structured_input",
+    "raw": "{\"timestamp\":\"2026-05-26T10:00:00Z\",\"level\":\"ERROR\",\"service\":\"payments-service\",\"message\":\"Database timeout for user 123\",\"source\":\"api\",\"metadata\":{\"request_id\":\"req-123\"}}"
+  },
+  "structured_output": {
+    "Problem Summary": "Detected issue in logs: Database timeout for user 123",
+    "Possible Cause": "System error, timeout, invalid request, or service failure.",
+    "Affected Component": "Backend ingestion pipeline / API / service layer",
+    "Suggested Fix": "Check logs, validate input, monitor service health, and retry request."
+  },
+  "metadata": {
+    "request_id": "req-123"
+  },
+  "redaction_summary": {}
+}
+```
+
+### `POST /v1/logs` examples
+
+#### OTel log batch
+
+```bash
+curl -X POST http://localhost:8000/v1/logs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceLogs": [
+      {
+        "scopeLogs": [
+          {
+            "logRecords": [
+              {
+                "timeUnixNano": 1762350000000000000,
+                "severityNumber": 17,
+                "severityText": "ERROR",
+                "body": {"stringValue": "Cache miss spike detected"},
+                "attributes": {
+                  "service.name": "cache-service"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }'
+```
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "message": "OTel logs processed successfully",
+  "processed_records": 1,
+  "redaction_summary": {},
+  "fallback_used": false
+}
+```
+
+#### Notes
+
+- `POST /ingest` accepts either a raw `log_data` string or a structured JSON object.
+- `POST /v1/logs` accepts OpenTelemetry HTTP export payloads and normalizes them before queueing.
+- The worker processes queued payloads asynchronously and applies semantic duplicate clustering when enabled.
 ### Quick Start (Local Dev)
 
 1. **Clone & Setup**:
