@@ -55,5 +55,4 @@ def normalize_timestamp(ts_str: str) -> Optional[str]:
     logger.debug(
         f"Timestamp '{ts_str}' did not match supported formats. Returning raw."
     )
-
     return ts_str

@@ -64,7 +64,6 @@ IPV4_RULE = RedactionRule(
     ),
 )
 
-# Lightweight redaction metrics
 REDACTION_METRICS = {
     "total_redactions": 0,
     "payloads_sanitized": 0
@@ -77,9 +76,6 @@ def _increment_metric(metric: str):
 
 
 def _luhn_valid(digits: str) -> bool:
-    """
-    Reduce credit-card false positives.
-    """
     digits = re.sub(r"\D", "", digits)
 
     if not 13 <= len(digits) <= 19:
@@ -111,20 +107,12 @@ class Redactor:
         self.enabled = enabled
 
     def redact(self, text: str) -> str:
-        """
-        Backward-compatible helper that returns only
-        the redacted text.
-        """
         return self.redact_with_summary(text).text
 
     def redact_with_summary(
         self,
         text: str
     ) -> RedactionResult:
-        """
-        Redact text while tracking rule match summaries
-        and lightweight metrics.
-        """
         if not self.enabled or not text:
             return RedactionResult(text=text)
 
@@ -177,33 +165,29 @@ class Redactor:
 
     def redact_dict(self, data: dict) -> dict:
         """
-        Recursively redact nested dictionary/list string values
-        without mutating the caller's original payload.
+        Recursively redact nested dictionary/list string values.
+        Returns a deep copy with redacted values; original is never modified.
         """
+
         if not self.enabled:
-            return deepcopy(data)
+            return data
 
-        def _sanitize(value):
-            if isinstance(value, str):
-                return self.redact(value)
-
+        def walk(value):
             if isinstance(value, dict):
                 return {
-                    k: _sanitize(v)
-                    for k, v in value.items()
+                    key: walk(val)
+                    for key, val in value.items()
                 }
 
             if isinstance(value, list):
-                return [
-                    _sanitize(item)
-                    for item in value
-                ]
+                return [walk(item) for item in value]
+
+            if isinstance(value, str):
+                return self.redact(value)
 
             return value
 
-     
-
-        return _sanitize(deepcopy(data))
+        return walk(deepcopy(data))
 
 
 def build_default_redactor(
@@ -211,9 +195,6 @@ def build_default_redactor(
     pattern_names: list[str] | None = None,
     include_ipv4: bool = False,
 ) -> Redactor:
-    """
-    Build a Redactor from default rules.
-    """
     rules = list(DEFAULT_RULES)
 
     if include_ipv4:
