@@ -69,3 +69,12 @@ def test_ingest_structured_redis_failure(mock_lpush):
 
     assert response.status_code == 500
     assert "Failed to queue log" in response.json()["detail"]
+
+def test_parser_metrics_endpoint():
+    response = client.get("/metrics/parser")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert "parser_metrics" in data
