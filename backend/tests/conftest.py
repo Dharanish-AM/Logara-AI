@@ -138,4 +138,8 @@ def missing_fields_log_entry() -> Dict[str, Any]:
 # -------------------------------------------------------------------------
 @pytest.fixture
 def anyio_backend() -> str:
+    """
+    Configuration for AnyIO, enabling asynchronous testing support for FastAPI 
+    routers and async background tasks. Defaults to using asyncio.
+    """
     return "asyncio"

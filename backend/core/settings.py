@@ -32,6 +32,12 @@ class Settings(BaseSettings):
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_timeout_seconds: float = 3.0
+    qdrant_collection: str = "logs"
+    qdrant_cluster_collection: str = "log_clusters"
+
+    duplicate_similarity_threshold: float = 0.92
+    max_cluster_sample_size: int = 5
+    enable_duplicate_clustering: bool = True
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_health_path: str = "/api/tags"
