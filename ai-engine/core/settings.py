@@ -1,6 +1,7 @@
 """
 Application settings for the AI Engine, loaded from environment variables.
 """
+
 from functools import lru_cache
 from pathlib import Path
 
@@ -20,6 +21,8 @@ class Settings(BaseSettings):
     # Qdrant
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "logs"
+    incident_memory_collection: str = "incident_memory"
+    incident_similarity_threshold: float = 0.95
 
     # Ollama
     ollama_base_url: str = "http://localhost:11434"
