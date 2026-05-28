@@ -52,6 +52,7 @@ logger = logging.getLogger(__name__)
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
+QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "logs")
 
 # Lazy-loaded globals to keep unit tests fast/offline
 _embedding_model = None

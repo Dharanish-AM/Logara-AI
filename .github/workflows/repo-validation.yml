@@ -174,11 +174,11 @@ jobs:
         ports:
           - 6333:6333
         options: >-
-          --health-cmd "curl -sf http://localhost:6333/readyz"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 15
-          --health-start-period 90s
+          --health-cmd="curl -f http://localhost:6333/health || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+          --health-start-period=40s
     env:
       ENABLE_LIVE_SERVICE_TESTS: "1"
       REDIS_HOST: 127.0.0.1
