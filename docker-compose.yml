@@ -9,11 +9,11 @@ services:
     networks:
       - logara_internal
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:6333/healthz || exit 1"]
-      interval: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 20s
+      retries: 10
+      start_period: 40s
 
   redis:
     image: redis:alpine
