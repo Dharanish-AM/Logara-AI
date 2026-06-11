@@ -1,6 +1,19 @@
-# Logara AI
+#Logara AI
 
 Logara AI is a modular observability platform designed to transform raw, noisy log streams into actionable intelligence. By combining high-performance ingestion with vector-based semantic search and local LLM processing, it provides developers with instant insights into system behavior without the overhead of manual pattern matching.
+
+## Table of Contents
+
+- [Core Capabilities](#core-capabilities)
+- [Architecture](#architecture)
+- [Development Status & Roadmap](#development-status--roadmap)
+- [Security & Redaction Pipeline](#security--redaction-pipeline)
+  - [Currently Supported Redaction Types](#currently-supported-redaction-types)
+  - [Redaction Observability](#redaction-observability)
+  - [Semantic Duplicate Clustering](#semantic-duplicate-clustering)
+    - [Configurable Settings](#configurable-settings)
+    - [Example Behavior](#example-behavior)
+    - [Example Cluster Payloads](#example-cluster-payloads)
 
 ## Core Capabilities
 
