@@ -168,8 +168,12 @@ class LogService:
             with_payload=True,
             with_vectors=False
         )
-
-        logs = [r.payload for r in records if r.payload]
+        logs = []
+        for r in records:
+            if r.payload:
+                p = dict(r.payload)
+                p["id"] = str(r.id)
+                logs.append(p)
 
         # Sort descending by timestamp
         def get_ts(log):
@@ -194,14 +198,28 @@ class LogService:
         self._ensure_collection()
         query_vector = self.get_embedding(query)
 
-        results = self.qclient.search(
-            collection_name=QDRANT_COLLECTION,
-            query_vector=query_vector,
-            limit=limit,
-            with_payload=True
-        )
-
-        logs = [r.payload for r in results if r.payload]
+        search_fn = getattr(self.qclient, "search", None)
+        if callable(search_fn):
+            results = search_fn(
+                collection_name=QDRANT_COLLECTION,
+                query_vector=query_vector,
+                limit=limit,
+                with_payload=True
+            )
+        else:
+            res = self.qclient.query_points(
+                collection_name=QDRANT_COLLECTION,
+                query=query_vector,
+                limit=limit,
+                with_payload=True
+            )
+            results = res.points if hasattr(res, "points") else res
+        logs = []
+        for r in results:
+            if r.payload:
+                p = dict(r.payload)
+                p["id"] = str(r.id)
+                logs.append(p)
 
         # If we have no logs, we return empty list and message
         if not logs:

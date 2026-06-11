@@ -263,21 +263,32 @@ class DuplicateClusteringService:
         return round(ratio, 2)
 
     def _search_cluster(self, embedding: list[float]) -> list[Any] | None:
-        try:
-            result = self.qdrant_client.search(
+        search_fn = getattr(self.qdrant_client, "search", None)
+        if callable(search_fn):
+            try:
+                result = search_fn(
+                    collection_name=self.clusters_collection,
+                    query_vector=embedding,
+                    limit=1,
+                    with_payload=True,
+                )
+            except TypeError:
+                result = search_fn(
+                    collection_name=self.clusters_collection,
+                    query_vector=embedding,
+                    limit=1,
+                    with_payload=True,
+                    score_threshold=0.0,
+                )
+        else:
+            # Fallback for newer qdrant-client versions
+            res = self.qdrant_client.query_points(
                 collection_name=self.clusters_collection,
-                query_vector=embedding,
+                query=embedding,
                 limit=1,
                 with_payload=True,
             )
-        except TypeError:
-            result = self.qdrant_client.search(
-                collection_name=self.clusters_collection,
-                query_vector=embedding,
-                limit=1,
-                with_payload=True,
-                score_threshold=0.0,
-            )
+            result = res.points if hasattr(res, "points") else res
 
         if not isinstance(result, (list, tuple)) or not result:
             return None
@@ -293,7 +304,7 @@ class DuplicateClusteringService:
     ) -> LogCluster:
         representative = str(log_text).strip() or log_source or "unknown log"
         return LogCluster(
-            cluster_id=f"cluster-{uuid.uuid4().hex}",
+            cluster_id=str(uuid.uuid4()),
             representative_log=representative,
             occurrence_count=1,
             first_seen=timestamp,

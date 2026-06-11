@@ -32,9 +32,10 @@ async def lifespan(app: FastAPI):
 
     app.state.log_service = LogService(qdrant_client)
 
+    import asyncio
     # Initialize Ollama manager for model bootstrap
     app.state.ollama_manager = OllamaModelManager()
-    await app.state.ollama_manager.bootstrap()
+    asyncio.create_task(app.state.ollama_manager.bootstrap())
 
     yield
     qdrant_client.close()
@@ -52,7 +53,7 @@ def create_app() -> FastAPI:
     allowed_origins = (
         settings.cors_allowed_origins.split(",")
         if hasattr(settings, "cors_allowed_origins")
-        else ["http://localhost:3000"]
+        else ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"]
     )
 
     app.add_middleware(

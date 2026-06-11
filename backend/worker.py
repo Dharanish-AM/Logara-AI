@@ -200,7 +200,9 @@ def _ensure_collection_initialized(client: QdrantClient) -> None:
     """
     global _collection_initialized
     if not _collection_initialized:
-        init_qdrant_collection(client, QDRANT_COLLECTION)
+        settings = get_settings()
+        init_qdrant_collection(client, settings.qdrant_collection)
+        init_qdrant_collection(client, settings.qdrant_cluster_collection)
         _collection_initialized = True
 
 

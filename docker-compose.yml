@@ -8,12 +8,7 @@ services:
       - qdrant_data:/qdrant/storage
     networks:
       - logara_internal
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
+
 
   redis:
     image: redis:alpine
@@ -62,7 +57,7 @@ services:
       - logara_internal
     depends_on:
       qdrant:
-        condition: service_healthy
+        condition: service_started
       ollama:
         condition: service_healthy
     healthcheck:
