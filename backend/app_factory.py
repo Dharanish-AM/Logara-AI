@@ -63,6 +63,18 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    from fastapi import Request
+    from fastapi.responses import JSONResponse
+    import logging
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        logging.error(f"Unhandled Exception: {exc}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"message": "Internal Server Error", "details": str(exc) if settings.debug else "An unexpected error occurred."},
+        )
+
     @app.get("/")
     async def root():
         return {
