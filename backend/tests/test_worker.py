@@ -180,22 +180,36 @@ def test_process_log_qdrant_failure(mock_get_model, mock_get_qdrant, caplog):
     assert "Failed to store log in Qdrant" in caplog.text
 
 
+@patch("worker.get_settings")
 @patch("worker.process_log")
 @patch("worker.redis_client.brpop")
-def test_run_worker_single_iteration(mock_brpop, mock_process_log):
+def test_run_worker_uses_configured_queue(
+    mock_brpop,
+    mock_process_log,
+    mock_get_settings,
+):
+    mock_settings = MagicMock()
+    mock_settings.redis_queue_name = "custom_queue"
+
+    mock_get_settings.return_value = mock_settings
+
     mock_brpop.side_effect = [
-        ("log_queue", '{"test": "data"}'),
-        KeyboardInterrupt()
+        ("custom_queue", '{"test": "data"}'),
+        KeyboardInterrupt(),
     ]
 
     run_worker()
+
+    mock_brpop.assert_any_call(
+        "custom_queue",
+        timeout=1,
+    )
 
     assert mock_brpop.call_count == 2
 
     mock_process_log.assert_called_once_with(
         '{"test": "data"}'
     )
-
 
 def test_init_qdrant_collection_creates_index():
     from worker import init_qdrant_collection
