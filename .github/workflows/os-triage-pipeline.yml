@@ -5,7 +5,7 @@ on:
   issues:
     types: [opened]
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
   pull_request_review:
     types: [submitted]
   issue_comment:
@@ -297,5 +297,75 @@ jobs:
                     console.log(`Posted conflict comment on PR #${prNumber}`);
                   }
                 }
+              }
+            }
+
+  # JOB 4: Auto-Close Linked Issues After a Successful PR Merge
+  close_linked_issues:
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close Issues Linked via Closing Keywords
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pr = context.payload.pull_request;
+            const prNumber = pr.number;
+            const prBody = pr.body || '';
+            const prTitle = pr.title;
+
+            // Match all closing keywords: Closes, Fixes, Resolves (case-insensitive)
+            const closingKeywords = /(?:closes?|fixes?|resolves?)\s+#(\d+)/gi;
+            const matches = [...prBody.matchAll(closingKeywords)];
+
+            if (matches.length === 0) {
+              console.log(`PR #${prNumber} has no linked closing keywords. Skipping issue close.`);
+              return;
+            }
+
+            const issueNumbers = [...new Set(matches.map(m => parseInt(m[1], 10)))];
+            console.log(`PR #${prNumber} references issues: ${issueNumbers.join(', ')}`);
+
+            for (const issueNumber of issueNumbers) {
+              try {
+                // Verify the issue exists and is open before closing
+                const { data: issue } = await github.rest.issues.get({
+                  owner,
+                  repo,
+                  issue_number: issueNumber
+                });
+
+                if (issue.state === 'closed') {
+                  console.log(`Issue #${issueNumber} is already closed. Skipping.`);
+                  continue;
+                }
+
+                if (issue.pull_request) {
+                  console.log(`#${issueNumber} is a PR, not an issue. Skipping.`);
+                  continue;
+                }
+
+                // Close the issue
+                await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  state: 'closed',
+                  state_reason: 'completed'
+                });
+
+                // Post a clean resolution comment
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  body: `✅ **Issue Resolved!**\n\nThis issue has been closed automatically because it was linked to PR #${prNumber} — **"${prTitle}"** — which has been successfully merged into \`main\`. 🎉\n\nThank you for your contribution! 🚀`
+                });
+
+                console.log(`Closed issue #${issueNumber} and posted resolution comment.`);
+              } catch (error) {
+                console.log(`Could not process issue #${issueNumber}: ${error.message}`);
               }
             }
