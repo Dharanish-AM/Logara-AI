@@ -41,11 +41,58 @@ jobs:
 
             // 2. Determine relevant structural labels based on keywords
             const labels = [];
-            if (title.includes('bug') || body.includes('error') || body.includes('fails')) labels.push('bug');
-            if (title.includes('feat') || title.includes('enhance') || title.includes('improve')) labels.push('enhancement');
-            if (title.includes('ui') || title.includes('css') || title.includes('frontend') || title.includes('navbar')) labels.push('frontend');
-            if (title.includes('api') || title.includes('redis') || title.includes('backend') || title.includes('worker')) labels.push('backend');
-            if (title.includes('docs') || title.includes('readme') || title.includes('documentation')) labels.push('documentation');
+            let typeLabelAdded = false;
+            if (title.includes('bug') || body.includes('error') || body.includes('fails')) {
+              labels.push('bug');
+              typeLabelAdded = true;
+            }
+            if (title.includes('feat') || title.includes('enhance') || title.includes('improve')) {
+              labels.push('enhancement');
+              typeLabelAdded = true;
+            }
+            if (title.includes('ui') || title.includes('css') || title.includes('frontend') || title.includes('navbar')) {
+              labels.push('frontend');
+              typeLabelAdded = true;
+            }
+            if (title.includes('api') || title.includes('redis') || title.includes('backend') || title.includes('worker')) {
+              labels.push('backend');
+              typeLabelAdded = true;
+            }
+            if (title.includes('docs') || title.includes('readme') || title.includes('documentation')) {
+              labels.push('documentation');
+              typeLabelAdded = true;
+            }
+
+            // Determine difficulty label based on keyword heuristics
+            let difficulty = 'level:intermediate'; // Default fallback
+            if (
+              title.includes('typo') || title.includes('readme') || title.includes('docs') || title.includes('documentation') ||
+              title.includes('easy') || title.includes('beginner') || title.includes('template') ||
+              body.includes('typo') || body.includes('simple fix')
+            ) {
+              difficulty = 'level:beginner';
+            } else if (
+              title.includes('starvation') || title.includes('deadlock') || title.includes('critical') ||
+              title.includes('security') || title.includes('vulnerability') || title.includes('leak') || title.includes('crash') ||
+              body.includes('critical') || body.includes('security vulnerability') || body.includes('memory leak')
+            ) {
+              difficulty = 'level:critical';
+            } else if (
+              title.includes('advanced') || title.includes('partition') || title.includes('rbac') ||
+              title.includes('caching') || title.includes('rate-limit') || title.includes('docker') ||
+              title.includes('ci/cd') || title.includes('pipeline') || title.includes('telemetry') ||
+              title.includes('latency') || title.includes('metrics') || title.includes('search') ||
+              title.includes('rca') || title.includes('llm') || title.includes('embedding') || title.includes('qdrant')
+            ) {
+              difficulty = 'level:advanced';
+            }
+            
+            labels.push(difficulty);
+
+            // Also ensure we have a type label. If none matched, default to enhancement
+            if (!typeLabelAdded) {
+              labels.push('enhancement');
+            }
 
             if (labels.length > 0) {
               await github.rest.issues.addLabels({
