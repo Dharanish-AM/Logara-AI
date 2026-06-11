@@ -367,7 +367,92 @@ jobs:
               }
             }
 
-            console.log("\\n✅ Batch triage complete — issues, PRs, and historical backlog all processed!");
+            console.log("\\n✅ Part 3 complete — linked issues closed.");
+
+            // --- PART 4: Retroactively Label & Assign Closed Issues ---
+            console.log("\\n--- PART 4: Labeling and assigning closed issues ---");
+
+            const closedItems = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'closed',
+              per_page: 100
+            });
+
+            const closedIssues = closedItems.filter(item => !item.pull_request);
+            console.log(`Found ${closedIssues.length} closed issues to scan.`);
+
+            for (const issue of closedIssues) {
+              const issueNumber = issue.number;
+              const opener = issue.user.login;
+              const title = issue.title.toLowerCase();
+              const body = (issue.body || '').toLowerCase();
+
+              // Assign to opener if not already assigned
+              const isAssignedToOpener = issue.assignees.some(a => a.login === opener);
+              if (!isAssignedToOpener) {
+                try {
+                  await github.rest.issues.addAssignees({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                    assignees: [opener]
+                  });
+                } catch (e) {
+                  console.log(`Could not assign issue #${issueNumber}: ${e.message}`);
+                }
+              }
+
+              // Apply keyword-based labels
+              const existingLabels = issue.labels.map(l => l.name);
+              const newLabels = [];
+              if ((title.includes('bug') || body.includes('error') || body.includes('fails')) && !existingLabels.includes('bug')) newLabels.push('bug');
+              if ((title.includes('feat') || title.includes('enhance') || title.includes('improve')) && !existingLabels.includes('enhancement')) newLabels.push('enhancement');
+              if ((title.includes('ui') || title.includes('css') || title.includes('frontend') || title.includes('navbar')) && !existingLabels.includes('frontend')) newLabels.push('frontend');
+              if ((title.includes('api') || title.includes('redis') || title.includes('backend') || title.includes('worker')) && !existingLabels.includes('backend')) newLabels.push('backend');
+              if ((title.includes('docs') || title.includes('readme') || title.includes('documentation')) && !existingLabels.includes('documentation')) newLabels.push('documentation');
+
+              if (newLabels.length > 0) {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  labels: newLabels
+                });
+                console.log(`Labeled closed issue #${issueNumber}: ${JSON.stringify(newLabels)}`);
+              }
+            }
+
+            console.log("\\n✅ Part 4 complete — closed issues labeled and assigned.");
+
+            // --- PART 5: Retroactively Add GSSoC Labels to All Merged PRs ---
+            console.log("\\n--- PART 5: Adding GSSoC labels to all historically merged PRs ---");
+
+            const gssocLabels = ['gssoc:approved', 'gssoc26'];
+            let mergedPRsLabeled = 0;
+
+            for (const pr of actuallyMerged) {
+              const prLabels = pr.labels.map(l => l.name);
+              const missingLabels = gssocLabels.filter(label => !prLabels.includes(label));
+
+              if (missingLabels.length > 0) {
+                try {
+                  await github.rest.issues.addLabels({
+                    owner,
+                    repo,
+                    issue_number: pr.number,
+                    labels: missingLabels
+                  });
+                  mergedPRsLabeled++;
+                  console.log(`Added GSSoC labels to merged PR #${pr.number}: ${JSON.stringify(missingLabels)}`);
+                } catch (e) {
+                  console.log(`Could not label PR #${pr.number}: ${e.message}`);
+                }
+              }
+            }
+
+            console.log(`\\n✅ Part 5 complete — ${mergedPRsLabeled} merged PRs retroactively labeled for GSSoC.`);
+            console.log("\\n🎉 Full batch triage complete — all issues, PRs, and historical items processed!");
 
   # JOB 4: Auto-Close Linked Issues After a Successful PR Merge
   close_linked_issues:
