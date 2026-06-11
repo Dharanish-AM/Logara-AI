@@ -187,7 +187,11 @@ class Redactor:
 
             return value
 
-        return walk(deepcopy(data))
+        # Explicit deep copy prevents accidental mutation
+        # of caller-owned nested payload structures.
+
+        copied_data = deepcopy(data)
+        return walk(copied_data)
 
 
 def build_default_redactor(
