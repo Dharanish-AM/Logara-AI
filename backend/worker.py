@@ -81,6 +81,21 @@ def get_qdrant_client() -> QdrantClient:
     return _qdrant_client
 
 
+def get_duplicate_clustering_service() -> DuplicateClusteringService:
+    global _duplicate_clustering_service
+    if _duplicate_clustering_service is None:
+        settings = get_settings()
+        _duplicate_clustering_service = DuplicateClusteringService(
+            qdrant_client=get_qdrant_client(),
+            similarity_threshold=settings.duplicate_similarity_threshold,
+            max_cluster_sample_size=settings.max_cluster_sample_size,
+            enable_duplicate_clustering=settings.enable_duplicate_clustering,
+            logs_collection=settings.qdrant_collection,
+            clusters_collection=settings.qdrant_cluster_collection,
+        )
+    return _duplicate_clustering_service
+
+
 def _create_service_id_index(client: QdrantClient, collection_name: str) -> None:
     """
     Idempotently create a keyword payload index on 'service_id'.

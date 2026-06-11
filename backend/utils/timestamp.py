@@ -56,7 +56,7 @@ def normalize_timestamp(ts_str: str) -> Optional[str]:
         val = float(ts_str.strip())
         if val > 1e10:  # epoch-ms, convert to seconds
             val = val / 1000
-        return datetime.fromtimestamp(val, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        return datetime.fromtimestamp(val, tz=timezone.utc).isoformat()
     except (ValueError, OSError):
         pass
     
