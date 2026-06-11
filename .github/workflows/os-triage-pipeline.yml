@@ -1,0 +1,572 @@
+name: Open Source Ingestion & GSSoC Pipeline
+
+on:
+  workflow_dispatch:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: write
+
+jobs:
+  # JOB 1: Welcome Author, Auto-Assign to Opener, and Auto-Label Issues
+  triage_issues:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Process New Open Source Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+            const opener = context.payload.issue.user.login;
+            const title = context.payload.issue.title.toLowerCase();
+            const body = (context.payload.issue.body || '').toLowerCase();
+            
+            // 1. Automatically assign the issue to the person who opened it
+            await github.rest.issues.addAssignees({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              assignees: [opener]
+            });
+
+            // 2. Determine relevant structural labels based on keywords
+            const labels = [];
+            let typeLabelAdded = false;
+            if (title.includes('bug') || body.includes('error') || body.includes('fails')) {
+              labels.push('bug');
+              typeLabelAdded = true;
+            }
+            if (title.includes('feat') || title.includes('enhance') || title.includes('improve')) {
+              labels.push('enhancement');
+              typeLabelAdded = true;
+            }
+            if (title.includes('ui') || title.includes('css') || title.includes('frontend') || title.includes('navbar')) {
+              labels.push('frontend');
+              typeLabelAdded = true;
+            }
+            if (title.includes('api') || title.includes('redis') || title.includes('backend') || title.includes('worker')) {
+              labels.push('backend');
+              typeLabelAdded = true;
+            }
+            if (title.includes('docs') || title.includes('readme') || title.includes('documentation')) {
+              labels.push('documentation');
+              typeLabelAdded = true;
+            }
+
+            // Determine difficulty label based on keyword heuristics
+            let difficulty = 'level:intermediate'; // Default fallback
+            if (
+              title.includes('typo') || title.includes('readme') || title.includes('docs') || title.includes('documentation') ||
+              title.includes('easy') || title.includes('beginner') || title.includes('template') ||
+              body.includes('typo') || body.includes('simple fix')
+            ) {
+              difficulty = 'level:beginner';
+            } else if (
+              title.includes('starvation') || title.includes('deadlock') || title.includes('critical') ||
+              title.includes('security') || title.includes('vulnerability') || title.includes('leak') || title.includes('crash') ||
+              body.includes('critical') || body.includes('security vulnerability') || body.includes('memory leak')
+            ) {
+              difficulty = 'level:critical';
+            } else if (
+              title.includes('advanced') || title.includes('partition') || title.includes('rbac') ||
+              title.includes('caching') || title.includes('rate-limit') || title.includes('docker') ||
+              title.includes('ci/cd') || title.includes('pipeline') || title.includes('telemetry') ||
+              title.includes('latency') || title.includes('metrics') || title.includes('search') ||
+              title.includes('rca') || title.includes('llm') || title.includes('embedding') || title.includes('qdrant')
+            ) {
+              difficulty = 'level:advanced';
+            }
+            
+            labels.push(difficulty);
+
+            // Also ensure we have a type label. If none matched, default to enhancement
+            if (!typeLabelAdded) {
+              labels.push('enhancement');
+            }
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: labels
+              });
+            }
+
+            // 3. Drop a friendly welcome comment confirming assignment
+            const welcomeMessage = `✨ **Hi @${opener}!** Thanks for opening this issue and helping improve Logara-AI.\n\nSince this is an open-source project, **we have automatically assigned this issue to you.** 🚀\n\nFeel free to submit a Pull Request when you are ready. Make sure to reference this issue number in your PR description!`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: welcomeMessage
+            });
+
+  # JOB 2: Auto-Label and Auto-Merge PRs with GSSoC 2026 Flags
+  auto_merge_pr:
+    if: github.event_name == 'pull_request' || github.event_name == 'issue_comment' || github.event_name == 'pull_request_review'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Auto-Label GSSoC PRs
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            
+            // Apply your designated GSSoC 2026 labels automatically to all new PRs
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              labels: ['gssoc:approved', 'gssoc26']
+            });
+            console.log(`Successfully added GSSoC 2026 tags to PR #${prNumber}`);
+
+      - name: Attempt Auto-Merge & Move on if Conflicted
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const isPR = !!context.payload.pull_request || (context.payload.issue && !!context.payload.issue.pull_request);
+            if (!isPR) {
+              console.log("Not a Pull Request context. Skipping.");
+              return;
+            }
+
+            const prNumber = context.payload.pull_request ? context.payload.pull_request.number : context.payload.issue.number;
+
+            try {
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber
+              });
+
+              if (pr.state !== 'open') return;
+
+              // Check if GitHub has already flagged a merge conflict
+              if (pr.mergeable === false) {
+                throw new Error("Merge conflict detected.");
+              }
+
+              // Executing a standard open-source squash merge
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                merge_method: 'squash'
+              });
+              
+              console.log(`PR #${prNumber} merged successfully!`);
+
+            } catch (error) {
+              console.log(`Bypassed merging PR #${prNumber}. Reason: ${error.message}`);
+              
+              // If there is a conflict, comment to let the contributor know, then exit cleanly
+              if (error.message.includes("conflict") || error.message.includes("Merge conflict")) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: "⚠️ **Merge Conflict Detected!** This PR cannot be merged automatically because it conflicts with the main branch. \n\n@🎨 **Contributor:** Please update your branch locally, resolve the conflicts, and push the updates. The pipeline has skipped this PR for now and moved on! 🚀"
+                });
+              }
+            }
+
+  # JOB 3: Batch Process Existing/Backlog Issues and PRs
+  manual_batch_triage:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Batch Process Open Issues & PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // 1. Fetch all open issues and PRs (up to 100)
+            const items = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100
+            });
+
+            console.log(`Found ${items.length} total open items (issues + PRs).`);
+
+            const openIssues = items.filter(item => !item.pull_request);
+            const openPRs = items.filter(item => !!item.pull_request);
+
+            console.log(`Processing ${openIssues.length} open issues and ${openPRs.length} open PRs...`);
+
+            // --- PART 1: Process Issues ---
+            for (const issue of openIssues) {
+              const issueNumber = issue.number;
+              const opener = issue.user.login;
+              const title = issue.title.toLowerCase();
+              const body = (issue.body || '').toLowerCase();
+
+              console.log(`Processing issue #${issueNumber} opened by @${opener}`);
+
+              // Check if already assigned to the opener
+              const isAssignedToOpener = issue.assignees.some(assignee => assignee.login === opener);
+              if (!isAssignedToOpener) {
+                await github.rest.issues.addAssignees({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  assignees: [opener]
+                });
+                console.log(`Assigned issue #${issueNumber} to @${opener}`);
+              }
+
+              // Determine and apply labels
+              const currentLabels = issue.labels.map(l => l.name);
+              const labelsToAdd = [];
+              if ((title.includes('bug') || body.includes('error') || body.includes('fails')) && !currentLabels.includes('bug')) labelsToAdd.push('bug');
+              if ((title.includes('feat') || title.includes('enhance') || title.includes('improve')) && !currentLabels.includes('enhancement')) labelsToAdd.push('enhancement');
+              if ((title.includes('ui') || title.includes('css') || title.includes('frontend') || title.includes('navbar')) && !currentLabels.includes('frontend')) labelsToAdd.push('frontend');
+              if ((title.includes('api') || title.includes('redis') || title.includes('backend') || title.includes('worker')) && !currentLabels.includes('backend')) labelsToAdd.push('backend');
+              if ((title.includes('docs') || title.includes('readme') || title.includes('documentation')) && !currentLabels.includes('documentation')) labelsToAdd.push('documentation');
+
+              if (labelsToAdd.length > 0) {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  labels: labelsToAdd
+                });
+                console.log(`Added labels ${JSON.stringify(labelsToAdd)} to issue #${issueNumber}`);
+              }
+
+              // Drop welcome comment only if we haven't commented before
+              const comments = await github.rest.issues.listComments({
+                owner,
+                repo,
+                issue_number: issueNumber
+              });
+              const alreadyWelcomed = comments.data.some(comment => comment.body.includes("automatically assigned this issue to you"));
+              
+              if (!alreadyWelcomed) {
+                const welcomeMessage = `✨ **Hi @${opener}!** Thanks for opening this issue and helping improve Logara-AI.\n\nSince this is an open-source project, **we have automatically assigned this issue to you.** 🚀\n\nFeel free to submit a Pull Request when you are ready. Make sure to reference this issue number in your PR description!`;
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  body: welcomeMessage
+                });
+                console.log(`Welcomed opener on issue #${issueNumber}`);
+              }
+            }
+
+            // --- PART 2: Process PRs ---
+            for (const prItem of openPRs) {
+              const prNumber = prItem.number;
+              console.log(`Processing PR #${prNumber}`);
+
+              // Add GSSoC labels if not present
+              const currentLabels = prItem.labels.map(l => l.name);
+              const targetLabels = ['gssoc:approved', 'gssoc26'];
+              const labelsToAdd = targetLabels.filter(label => !currentLabels.includes(label));
+
+              if (labelsToAdd.length > 0) {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: prNumber,
+                  labels: labelsToAdd
+                });
+                console.log(`Added GSSoC labels to PR #${prNumber}`);
+              }
+
+              // Fetch detailed PR object to check mergeability state
+              try {
+                const { data: pr } = await github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: prNumber
+                });
+
+                if (pr.mergeable === false) {
+                  throw new Error("Merge conflict detected.");
+                }
+
+                // Attempt squash merge
+                await github.rest.pulls.merge({
+                  owner,
+                  repo,
+                  pull_number: prNumber,
+                  merge_method: 'squash'
+                });
+                console.log(`PR #${prNumber} merged successfully!`);
+
+              } catch (error) {
+                console.log(`Bypassed merging PR #${prNumber}. Reason: ${error.message}`);
+
+                if (error.message.includes("conflict") || error.message.includes("Merge conflict")) {
+                  // Only comment if conflict warning not already posted
+                  const comments = await github.rest.issues.listComments({
+                    owner,
+                    repo,
+                    issue_number: prNumber
+                  });
+                  const conflictCommentExists = comments.data.some(comment => comment.body.includes("Merge Conflict Detected!"));
+                  
+                  if (!conflictCommentExists) {
+                    await github.rest.issues.createComment({
+                      owner,
+                      repo,
+                      issue_number: prNumber,
+                      body: "⚠️ **Merge Conflict Detected!** This PR cannot be merged automatically because it conflicts with the main branch. \n\n@🎨 **Contributor:** Please update your branch locally, resolve the conflicts, and push the updates. The pipeline has skipped this PR for now and moved on! 🚀"
+                    });
+                    console.log(`Posted conflict comment on PR #${prNumber}`);
+                  }
+                }
+              }
+            }
+
+            // --- PART 3: Retroactively Close Issues Linked to Already-Merged PRs ---
+            console.log("\\n--- PART 3: Scanning historically merged PRs for linked open issues ---");
+
+            const closingKeywords = /(?:closes?|fixes?|resolves?)\\s+#(\\d+)/gi;
+
+            // Fetch all merged PRs (paginated, up to 200)
+            const mergedPRs = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: 'closed',
+              per_page: 100
+            });
+
+            const actuallyMerged = mergedPRs.filter(pr => pr.merged_at !== null);
+            console.log(`Found ${actuallyMerged.length} merged PRs to scan.`);
+
+            for (const pr of actuallyMerged) {
+              const prBody = pr.body || '';
+              const matches = [...prBody.matchAll(closingKeywords)];
+              if (matches.length === 0) continue;
+
+              const issueNumbers = [...new Set(matches.map(m => parseInt(m[1], 10)))];
+
+              for (const issueNumber of issueNumbers) {
+                try {
+                  const { data: issue } = await github.rest.issues.get({
+                    owner,
+                    repo,
+                    issue_number: issueNumber
+                  });
+
+                  // Skip if already closed or if it's a PR
+                  if (issue.state === 'closed' || issue.pull_request) continue;
+
+                  // Close the issue
+                  await github.rest.issues.update({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                    state: 'closed',
+                    state_reason: 'completed'
+                  });
+
+                  // Post resolution comment (only if not already posted)
+                  const comments = await github.rest.issues.listComments({
+                    owner,
+                    repo,
+                    issue_number: issueNumber
+                  });
+                  const alreadyResolved = comments.data.some(c => c.body.includes('Issue Resolved!'));
+
+                  if (!alreadyResolved) {
+                    await github.rest.issues.createComment({
+                      owner,
+                      repo,
+                      issue_number: issueNumber,
+                      body: `✅ **Issue Resolved!**\\n\\nThis issue has been closed automatically because it was linked to PR #${pr.number} — **"${pr.title}"** — which was successfully merged into \`main\`. 🎉\\n\\nThank you for your contribution! 🚀`
+                    });
+                  }
+
+                  console.log(`Retroactively closed issue #${issueNumber} (linked to merged PR #${pr.number}).`);
+                } catch (error) {
+                  console.log(`Could not process issue #${issueNumber}: ${error.message}`);
+                }
+              }
+            }
+
+            console.log("\\n✅ Part 3 complete — linked issues closed.");
+
+            // --- PART 4: Retroactively Label & Assign Closed Issues ---
+            console.log("\\n--- PART 4: Labeling and assigning closed issues ---");
+
+            const closedItems = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'closed',
+              per_page: 100
+            });
+
+            const closedIssues = closedItems.filter(item => !item.pull_request);
+            console.log(`Found ${closedIssues.length} closed issues to scan.`);
+
+            for (const issue of closedIssues) {
+              const issueNumber = issue.number;
+              const opener = issue.user.login;
+              const title = issue.title.toLowerCase();
+              const body = (issue.body || '').toLowerCase();
+
+              // Assign to opener if not already assigned
+              const isAssignedToOpener = issue.assignees.some(a => a.login === opener);
+              if (!isAssignedToOpener) {
+                try {
+                  await github.rest.issues.addAssignees({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                    assignees: [opener]
+                  });
+                } catch (e) {
+                  console.log(`Could not assign issue #${issueNumber}: ${e.message}`);
+                }
+              }
+
+              // Apply keyword-based labels
+              const existingLabels = issue.labels.map(l => l.name);
+              const newLabels = [];
+              if ((title.includes('bug') || body.includes('error') || body.includes('fails')) && !existingLabels.includes('bug')) newLabels.push('bug');
+              if ((title.includes('feat') || title.includes('enhance') || title.includes('improve')) && !existingLabels.includes('enhancement')) newLabels.push('enhancement');
+              if ((title.includes('ui') || title.includes('css') || title.includes('frontend') || title.includes('navbar')) && !existingLabels.includes('frontend')) newLabels.push('frontend');
+              if ((title.includes('api') || title.includes('redis') || title.includes('backend') || title.includes('worker')) && !existingLabels.includes('backend')) newLabels.push('backend');
+              if ((title.includes('docs') || title.includes('readme') || title.includes('documentation')) && !existingLabels.includes('documentation')) newLabels.push('documentation');
+
+              if (newLabels.length > 0) {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  labels: newLabels
+                });
+                console.log(`Labeled closed issue #${issueNumber}: ${JSON.stringify(newLabels)}`);
+              }
+            }
+
+            console.log("\\n✅ Part 4 complete — closed issues labeled and assigned.");
+
+            // --- PART 5: Retroactively Add GSSoC Labels to All Merged PRs ---
+            console.log("\\n--- PART 5: Adding GSSoC labels to all historically merged PRs ---");
+
+            const gssocLabels = ['gssoc:approved', 'gssoc26'];
+            let mergedPRsLabeled = 0;
+
+            for (const pr of actuallyMerged) {
+              const prLabels = pr.labels.map(l => l.name);
+              const missingLabels = gssocLabels.filter(label => !prLabels.includes(label));
+
+              if (missingLabels.length > 0) {
+                try {
+                  await github.rest.issues.addLabels({
+                    owner,
+                    repo,
+                    issue_number: pr.number,
+                    labels: missingLabels
+                  });
+                  mergedPRsLabeled++;
+                  console.log(`Added GSSoC labels to merged PR #${pr.number}: ${JSON.stringify(missingLabels)}`);
+                } catch (e) {
+                  console.log(`Could not label PR #${pr.number}: ${e.message}`);
+                }
+              }
+            }
+
+            console.log(`\\n✅ Part 5 complete — ${mergedPRsLabeled} merged PRs retroactively labeled for GSSoC.`);
+            console.log("\\n🎉 Full batch triage complete — all issues, PRs, and historical items processed!");
+
+  # JOB 4: Auto-Close Linked Issues After a Successful PR Merge
+  close_linked_issues:
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close Issues Linked via Closing Keywords
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pr = context.payload.pull_request;
+            const prNumber = pr.number;
+            const prBody = pr.body || '';
+            const prTitle = pr.title;
+
+            // Match all closing keywords: Closes, Fixes, Resolves (case-insensitive)
+            const closingKeywords = /(?:closes?|fixes?|resolves?)\s+#(\d+)/gi;
+            const matches = [...prBody.matchAll(closingKeywords)];
+
+            if (matches.length === 0) {
+              console.log(`PR #${prNumber} has no linked closing keywords. Skipping issue close.`);
+              return;
+            }
+
+            const issueNumbers = [...new Set(matches.map(m => parseInt(m[1], 10)))];
+            console.log(`PR #${prNumber} references issues: ${issueNumbers.join(', ')}`);
+
+            for (const issueNumber of issueNumbers) {
+              try {
+                // Verify the issue exists and is open before closing
+                const { data: issue } = await github.rest.issues.get({
+                  owner,
+                  repo,
+                  issue_number: issueNumber
+                });
+
+                if (issue.state === 'closed') {
+                  console.log(`Issue #${issueNumber} is already closed. Skipping.`);
+                  continue;
+                }
+
+                if (issue.pull_request) {
+                  console.log(`#${issueNumber} is a PR, not an issue. Skipping.`);
+                  continue;
+                }
+
+                // Close the issue
+                await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  state: 'closed',
+                  state_reason: 'completed'
+                });
+
+                // Post a clean resolution comment
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  body: `✅ **Issue Resolved!**\n\nThis issue has been closed automatically because it was linked to PR #${prNumber} — **"${prTitle}"** — which has been successfully merged into \`main\`. 🎉\n\nThank you for your contribution! 🚀`
+                });
+
+                console.log(`Closed issue #${issueNumber} and posted resolution comment.`);
+              } catch (error) {
+                console.log(`Could not process issue #${issueNumber}: ${error.message}`);
+              }
+            }

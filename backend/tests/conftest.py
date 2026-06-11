@@ -132,6 +132,9 @@ def missing_fields_log_entry() -> Dict[str, Any]:
         "metadata": {"corrupted": True}
     }
 
+# Resolve the backend root so tests are runnable from any working directory
+# (project root, backend/, or tests/) without ModuleNotFoundError.
+ROOT_DIR = Path(__file__).resolve().parents[1]
 
 # -------------------------------------------------------------------------
 # Async & Integration Testing Preparation

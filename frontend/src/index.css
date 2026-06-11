@@ -200,3 +200,59 @@ select {
     width: 100%;
   }
 }
+
+/* ---------- Small Laptop ---------- */
+
+@media (max-width: 1280px) {
+  html {
+    font-size: 15px;
+  }
+
+  .ui-card {
+    border-radius: 22px;
+  }
+}
+
+/* ---------- Tablet ---------- */
+
+@media (max-width: 1024px) {
+  html {
+    font-size: 14px;
+  }
+
+  .ui-card {
+    border-radius: 20px;
+  }
+
+  .glass-surface {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+}
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 768px) {
+  html {
+    font-size: 13px;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  .ui-card {
+    border-radius: 18px;
+    padding: 1rem;
+  }
+
+  .ui-button {
+    width: 100%;
+  }
+
+  .fade-up,
+  .fade-up-delay {
+    animation-duration: 0.6s;
+  }
+}
+

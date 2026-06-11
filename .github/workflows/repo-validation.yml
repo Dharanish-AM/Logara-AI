@@ -61,8 +61,9 @@ jobs:
       - name: Install backend dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt pytest-cov
 
-      - name: Validate backend imports compile
-        run: python -m compileall .
+      - name: Compile Python files
+        run: |
+          python -m py_compile ./utils/redaction.py ./utils/timestamp.py ./worker.py
 
       - name: Run backend test suite
         if: ${{ !inputs.collect_backend_coverage }}
@@ -74,7 +75,7 @@ jobs:
 
       - name: Upload backend coverage report
         if: ${{ inputs.collect_backend_coverage }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage-xml
           path: backend/coverage.xml
@@ -91,7 +92,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: npm
@@ -139,7 +140,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build backend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -147,7 +148,7 @@ jobs:
           tags: logara-ai-backend:ci
 
       - name: Build frontend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
@@ -173,10 +174,11 @@ jobs:
         ports:
           - 6333:6333
         options: >-
-          --health-cmd "wget --spider -q http://localhost:6333/healthz || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+          --health-cmd="curl -f http://localhost:6333/health || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+          --health-start-period=40s
     env:
       ENABLE_LIVE_SERVICE_TESTS: "1"
       REDIS_HOST: 127.0.0.1

@@ -1,6 +1,19 @@
-# Logara AI
+#Logara AI
 
 Logara AI is a modular observability platform designed to transform raw, noisy log streams into actionable intelligence. By combining high-performance ingestion with vector-based semantic search and local LLM processing, it provides developers with instant insights into system behavior without the overhead of manual pattern matching.
+
+## Table of Contents
+
+- [Core Capabilities](#core-capabilities)
+- [Architecture](#architecture)
+- [Development Status & Roadmap](#development-status--roadmap)
+- [Security & Redaction Pipeline](#security--redaction-pipeline)
+  - [Currently Supported Redaction Types](#currently-supported-redaction-types)
+  - [Redaction Observability](#redaction-observability)
+  - [Semantic Duplicate Clustering](#semantic-duplicate-clustering)
+    - [Configurable Settings](#configurable-settings)
+    - [Example Behavior](#example-behavior)
+    - [Example Cluster Payloads](#example-cluster-payloads)
 
 ## Core Capabilities
 
@@ -36,6 +49,75 @@ graph TD
     G --> H[React Dashboard]
     end
 ```
+
+## Log Entry Lifecycle
+
+To understand how a single log entry flows through Logara, follow this sequence diagram:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Ingestor as FastAPI<br/>Ingestor
+    participant Redactor as Redaction<br/>Pipeline
+    participant Queue as Redis<br/>Queue
+    participant Processor as Log<br/>Processor
+    participant VectorDB as Qdrant<br/>Vector DB
+    participant AI as AI Engine<br/>+ Ollama
+
+    Client->>Ingestor: POST /ingest (raw log)
+    activate Ingestor
+    
+    Ingestor->>Redactor: Parse & sanitize
+    activate Redactor
+    Redactor-->>Ingestor: Redacted log payload
+    deactivate Redactor
+    
+    Ingestor->>Queue: Queue sanitized log
+    Ingestor-->>Client: 200 success_queued
+    deactivate Ingestor
+    
+    Queue->>Processor: Consume job
+    activate Processor
+    
+    Processor->>VectorDB: Generate embedding<br/>& store vector
+    activate VectorDB
+    VectorDB-->>Processor: Vector persisted
+    deactivate VectorDB
+    
+    Processor->>Processor: Update cluster<br/>metadata
+    Processor-->>Queue: Job complete
+    deactivate Processor
+    
+    Client->>Ingestor: POST /search (query)
+    activate Ingestor
+    
+    Ingestor->>VectorDB: Vector semantic search
+    activate VectorDB
+    VectorDB-->>Ingestor: Top-k results
+    deactivate VectorDB
+    
+    Ingestor->>AI: Request synthesis<br/>(context + logs)
+    activate AI
+    AI->>AI: Query Ollama<br/>for insights
+    AI-->>Ingestor: Explanation + summary
+    deactivate AI
+    
+    Ingestor-->>Client: 200 search results
+    deactivate Ingestor
+```
+
+**Key Stages:**
+
+1. **Ingestion**: Client sends a log to the FastAPI ingestor endpoint
+2. **Redaction**: Sensitive data (API keys, emails, tokens) is stripped before queuing
+3. **Queueing**: Sanitized log is added to Redis for asynchronous processing
+4. **Processing**: Background worker consumes the job, generates embeddings, and stores vectors
+5. **Duplicate Clustering**: Similar logs are grouped by semantic similarity for noise reduction
+6. **Search**: When a user queries logs, semantic search retrieves relevant vectors from Qdrant
+7. **AI Synthesis**: Ollama LLM synthesizes findings into actionable insights
+8. **Results**: Dashboard receives structured explanation and original log samples
+
+This architecture ensures that sensitive data never reaches downstream services while enabling fast semantic search and intelligent analysis.
 
 ## Development Status & Roadmap
 
@@ -175,7 +257,6 @@ Operational guidance:
 
 - [x] **Q2**: Implementation of OpenTelemetry (OTel) collector integration.
 - [x] **Q2**: Support for persistent vector storage partitioning by 'service_id'.
-- [x] **Q3**: AI Engine microservice foundation for Semantic Search and RAG pipelines.
 - [ ] **Q3**: Beta release of the "Explain Error" hover-state in the dashboard.
 - [ ] **Q4**: Multi-tenant RBAC for enterprise-grade deployments.
 

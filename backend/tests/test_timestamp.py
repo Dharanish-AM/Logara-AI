@@ -9,7 +9,24 @@ from utils.timestamp import normalize_timestamp
 
 class TestTimestampNormalization:
     """Test suite for normalize_timestamp function."""
+        # ===== Unix Epoch Timestamp Support =====
+    def test_unix_epoch_seconds_timestamp(self):
+        """Test Unix epoch timestamp in seconds."""
+        result = normalize_timestamp("1716746096")
 
+        assert result == "2024-05-26T17:54:56+00:00"
+
+    def test_unix_epoch_milliseconds_timestamp(self):
+        """Test Unix epoch timestamp in milliseconds."""
+        result = normalize_timestamp("1716746096000")
+
+        assert result == "2024-05-26T17:54:56+00:00"
+
+    def test_invalid_large_epoch_returns_raw_value(self):
+        """Test unrealistic epoch timestamp safely falls back."""
+        result = normalize_timestamp("999999999999999999999")
+
+        assert result == "999999999999999999999"
     # ===== ISO 8601 with Positive Timezone Offsets =====
     def test_positive_timezone_offset_plus_5_30(self):
         """Test ISO 8601 timestamp with +05:30 timezone offset (IST)."""

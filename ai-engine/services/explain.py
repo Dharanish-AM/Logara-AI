@@ -2,6 +2,7 @@
 ExplainService — RAG pipeline that retrieves relevant context logs from
 Qdrant and feeds them to Ollama to generate a root-cause explanation.
 """
+
 import logging
 from typing import Optional
 
@@ -11,6 +12,7 @@ from core.settings import get_settings
 from schemas.explain import ExplainRequest, ExplainResponse
 from schemas.search import SearchResult
 from services.search import SearchService
+from services.incident_memory import IncidentMemoryService
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +63,16 @@ class ExplainService:
     dependency — keeping the service footprint small.
     """
 
-    def __init__(self, search_service: Optional[SearchService] = None) -> None:
+
+    def __init__(
+        self,
+        search_service: Optional[SearchService] = None,
+        incident_memory_service: Optional[IncidentMemoryService] = None,
+    ) -> None:
+
         self._search = search_service or SearchService()
+
+        self._incident_memory = incident_memory_service or IncidentMemoryService()
 
     async def explain(self, request: ExplainRequest) -> ExplainResponse:
         """
@@ -81,6 +91,25 @@ class ExplainService:
             httpx.HTTPStatusError:  Ollama returned a non-2xx status.
         """
         settings = get_settings()
+
+        cached_incident = self._incident_memory.search_similar_incident(
+            request.error_message
+        )
+
+        if (
+            cached_incident
+            and cached_incident.score >= settings.incident_similarity_threshold
+        ):
+
+            logger.info(
+                f"Using cached RCA explanation " f"(score={cached_incident.score:.2f})"
+            )
+
+            return ExplainResponse(
+                explanation=cached_incident.explanation,
+                context_logs=[],
+                model=f"{settings.ollama_model} (cached)",
+            )
 
         # Step 1: Retrieve relevant context logs
         context_logs = self._search.search(
@@ -113,6 +142,13 @@ class ExplainService:
             logger.warning(
                 "Ollama returned an empty 'response' field — "
                 "check that the model is pulled and the prompt is valid."
+            )
+
+        else:
+            self._incident_memory.store_incident(
+                error_message=request.error_message,
+                explanation=explanation,
+                service_id=request.service_id,
             )
 
         return ExplainResponse(

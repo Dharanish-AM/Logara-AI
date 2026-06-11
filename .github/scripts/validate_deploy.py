@@ -13,7 +13,7 @@ REQUIRED_PATHS = (
     ".env.example",
     ".github/CODEOWNERS",
     ".github/dependabot.yml",
-    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/pull_request_template.md",
     ".github/branch-protection.md",
     ".github/labels.json",
     ".github/labeler.yml",

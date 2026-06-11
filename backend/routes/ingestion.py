@@ -1,6 +1,4 @@
-"""
-Ingestion routes.
-"""
+"""Ingestion routes."""
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import ValidationError
@@ -9,7 +7,6 @@ from core.settings import get_settings
 from schemas.ingestion import parse_ingest_request, validation_errors_to_detail
 from services.ingestion import IngestionService
 from utils.redaction import build_default_redactor
-
 
 router = APIRouter()
 
@@ -26,6 +23,7 @@ def get_ingestion_service() -> IngestionService:
                 include_ipv4=settings.redact_ipv4,
             )
         )
+
     return app.state.ingestion_service
 
 
@@ -37,7 +35,12 @@ async def ingest_logs(
     try:
         request_model = parse_ingest_request(payload)
     except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=validation_errors_to_detail(exc)) from exc
+        raise HTTPException(
+            status_code=422,
+            detail=validation_errors_to_detail(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return ingestion_service.ingest_request(request_model)
 
