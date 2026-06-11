@@ -77,7 +77,7 @@ def test_validate_repository_layout_flags_missing_env_keys(tmp_path):
         "name: Question\n",
         encoding="utf-8",
     )
-    (repo_root / ".github" / "PULL_REQUEST_TEMPLATE.md").write_text(
+    (repo_root / ".github" / "pull_request_template.md").write_text(
         "# Pull Request\n",
         encoding="utf-8",
     )
@@ -168,7 +168,7 @@ def test_validate_repository_layout_passes_for_minimal_valid_repo(tmp_path):
         "name: Question\n",
         encoding="utf-8",
     )
-    (repo_root / ".github" / "PULL_REQUEST_TEMPLATE.md").write_text(
+    (repo_root / ".github" / "pull_request_template.md").write_text(
         "# Pull Request\n",
         encoding="utf-8",
     )
