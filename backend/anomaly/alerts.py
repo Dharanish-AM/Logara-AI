@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 import json
 import logging
 
-from schemas import AlertSeverity, AnomalyEvent
+from anomaly.schemas import AlertSeverity, AnomalyEvent
 
 logger = logging.getLogger(__name__)
 
