@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Process New Open Source Issue
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const issueNumber = context.issue.number;
@@ -125,7 +125,7 @@ jobs:
 
       - name: Auto-Label GSSoC PRs
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
@@ -140,7 +140,7 @@ jobs:
             console.log(`Successfully added GSSoC 2026 tags to PR #${prNumber}`);
 
       - name: Attempt Auto-Merge & Move on if Conflicted
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           script: |
@@ -214,7 +214,7 @@ jobs:
           fetch-depth: 0
 
       - name: Batch Process Open Issues & PRs
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           script: |
@@ -522,7 +522,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Close Issues Linked via Closing Keywords
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const owner = context.repo.owner;
