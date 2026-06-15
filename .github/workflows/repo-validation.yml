@@ -75,7 +75,7 @@ jobs:
 
       - name: Upload backend coverage report
         if: ${{ inputs.collect_backend_coverage }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage-xml
           path: backend/coverage.xml
