@@ -5,6 +5,7 @@ from typing import Callable, Optional, Dict, List, Any
 from abc import ABC, abstractmethod
 import json
 import logging
+import httpx
 
 from anomaly.schemas import AlertSeverity, AnomalyEvent
 
@@ -139,10 +140,20 @@ class SlackNotificationHandler(NotificationHandler):
                 ],
             }
 
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.post(self.webhook_url, json=payload)
+                response.raise_for_status()
+
             logger.info(
                 f"Slack notification sent for alert {notification.rule_id}"
             )
             return True
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Slack notification failed for alert {notification.rule_id}: "
+                f"HTTP {e.response.status_code}"
+            )
+            return False
         except Exception as e:
             logger.error(f"Error sending Slack notification: {str(e)}")
             return False
@@ -169,8 +180,22 @@ class WebhookNotificationHandler(NotificationHandler):
 
         try:
             payload = notification.to_dict()
+
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.post(
+                    self.webhook_url,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                )
+                response.raise_for_status()
+
             logger.info(f"Webhook notification sent to {self.webhook_url}")
             return True
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Webhook notification failed: HTTP {e.response.status_code}"
+            )
+            return False
         except Exception as e:
             logger.error(f"Error sending webhook notification: {str(e)}")
             return False
