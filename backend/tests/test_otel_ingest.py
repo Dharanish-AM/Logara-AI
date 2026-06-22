@@ -199,3 +199,63 @@ def test_ingest_otel_logs_endpoint_success(mock_lpush):
 def test_ingest_otel_logs_empty_payload():
     response = client.post("/v1/logs", json={})
     assert response.status_code == 400
+
+
+@patch("services.ingestion.redis_client.lpush")
+def test_ingest_otel_logs_protobuf_success(mock_lpush):
+    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
+    from google.protobuf.json_format import ParseDict
+    
+    payload_dict = {
+        "resourceLogs": [
+            {
+                "resource": {
+                    "attributes": [
+                        {"key": "service.name", "value": {"stringValue": "gateway-pb"}}
+                    ]
+                },
+                "scopeLogs": [
+                    {
+                        "logRecords": [
+                            {
+                                "timeUnixNano": "1682124012000000000",
+                                "severityText": "INFO",
+                                "body": {"stringValue": "Protobuf login success"},
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    
+    pb_request = ParseDict(payload_dict, ExportLogsServiceRequest())
+    raw_body = pb_request.SerializeToString()
+    
+    response = client.post(
+        "/v1/logs", 
+        content=raw_body, 
+        headers={"Content-Type": "application/x-protobuf"}
+    )
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["processed_records"] == 1
+    
+    # Verify Redis push
+    assert mock_lpush.called
+    called_args = mock_lpush.call_args[0]
+    queued_payload = json.loads(called_args[1])
+    assert queued_payload["parsed"]["message"] == "Protobuf login success"
+    assert queued_payload["parsed"]["metadata"]["service"] == "gateway-pb"
+
+
+def test_ingest_otel_logs_invalid_protobuf():
+    response = client.post(
+        "/v1/logs", 
+        content=b"invalid protobuf data", 
+        headers={"Content-Type": "application/x-protobuf"}
+    )
+    assert response.status_code == 400
+    assert "Invalid Protocol Buffer payload" in response.json()["detail"]
