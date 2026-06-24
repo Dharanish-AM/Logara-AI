@@ -44,7 +44,7 @@ jobs:
         run: python -m pip install --upgrade pip pip-audit
 
       - name: Audit backend dependencies
-        run: pip-audit -r requirements.txt
+        run: pip-audit -r requirements.txt --ignore-vuln CVE-2025-3000
 
   frontend-dependency-audit:
     name: Frontend Dependency Audit

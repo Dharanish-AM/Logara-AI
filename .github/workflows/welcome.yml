@@ -20,8 +20,8 @@ jobs:
       - name: Welcome first-time issue and PR authors
         uses: actions/first-interaction@v3
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          issue-message: |
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
             Thanks for opening your first issue in Logara AI.
 
             Please make sure you selected the issue form that best matches your topic and included enough detail for the maintainers to reproduce or understand the request quickly.
@@ -31,7 +31,7 @@ jobs:
             - `CONTRIBUTING.md` for contribution expectations
 
             A maintainer will review this when available.
-          pr-message: |
+          pr_message: |
             Thanks for your first pull request to Logara AI.
 
             Before review, please make sure:

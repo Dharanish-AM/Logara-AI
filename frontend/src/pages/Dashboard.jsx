@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 function Dashboard() {
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   // State hooks
   const [logs, setLogs] = useState([]);
@@ -182,7 +182,7 @@ function Dashboard() {
         {/* Connection status badge */}
         <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-emerald-500/20 bg-emerald-950/20 text-emerald-400 text-xs font-semibold">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          Connected to API:8002
+          Connected to API ({new URL(API_URL).port || '8000'})
         </div>
       </div>
 
@@ -198,7 +198,7 @@ function Dashboard() {
 
         <div className="ui-card group p-6 rounded-3xl border border-neutral-800 bg-neutral-950/80 backdrop-blur-xl hover:border-rose-500/40 transition-all duration-300">
           <h2 className="text-neutral-400 text-sm">Anomalies Detected</h2>
-          <p className="text-4xl font-rose-400 font-black mt-3 text-rose-400 transition-all duration-300 group-hover:scale-105">
+          <p className="text-4xl font-black mt-3 text-rose-400 transition-all duration-300 group-hover:scale-105">
             {stats.anomalies}
           </p>
           <div className="mt-5 h-[2px] w-0 bg-rose-400 transition-all duration-500 group-hover:w-full" />
