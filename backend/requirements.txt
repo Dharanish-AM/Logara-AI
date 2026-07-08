@@ -13,3 +13,4 @@ redis
 pytest
 httpx
 numpy
+cryptography

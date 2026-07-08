@@ -144,13 +144,6 @@ jobs:
         with:
           github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           script: |
-            if (context.eventName === 'issue_comment') {
-              const commentUser = context.payload.comment.user.login;
-              if (commentUser === 'github-actions[bot]' || commentUser.includes('[bot]')) {
-                return;
-              }
-            }
-
             const isPR = !!context.payload.pull_request || (context.payload.issue && !!context.payload.issue.pull_request);
             if (!isPR) {
               console.log("Not a Pull Request context. Skipping.");
@@ -168,10 +161,12 @@ jobs:
 
               if (pr.state !== 'open') return;
 
+              // Check if GitHub has already flagged a merge conflict
               if (pr.mergeable === false) {
                 throw new Error("Merge conflict detected.");
               }
 
+              // Executing a standard open-source squash merge
               await github.rest.pulls.merge({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -184,22 +179,14 @@ jobs:
             } catch (error) {
               console.log(`Bypassed merging PR #${prNumber}. Reason: ${error.message}`);
               
+              // If there is a conflict, comment to let the contributor know, then exit cleanly
               if (error.message.includes("conflict") || error.message.includes("Merge conflict")) {
-                const comments = await github.rest.issues.listComments({
+                await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  issue_number: prNumber
+                  issue_number: prNumber,
+                  body: "⚠️ **Merge Conflict Detected!** This PR cannot be merged automatically because it conflicts with the main branch. \n\n@🎨 **Contributor:** Please update your branch locally, resolve the conflicts, and push the updates. The pipeline has skipped this PR for now and moved on! 🚀"
                 });
-                const conflictCommentExists = comments.data.some(comment => comment.body.includes("Merge Conflict Detected!"));
-                
-                if (!conflictCommentExists) {
-                  await github.rest.issues.createComment({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: prNumber,
-                    body: "⚠️ **Merge Conflict Detected!** This PR cannot be merged automatically because it conflicts with the main branch. \n\n@🎨 **Contributor:** Please update your branch locally, resolve the conflicts, and push the updates. The pipeline has skipped this PR for now and moved on! 🚀"
-                  });
-                }
               }
             }
 
