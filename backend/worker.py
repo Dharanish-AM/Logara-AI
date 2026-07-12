@@ -41,6 +41,7 @@ except ImportError:
 from core.settings import get_settings
 from services.duplicate_detector import DuplicateClusteringService
 from utils.queue import redis_client
+from utils.service_id import normalize_service_id
 from utils.similarity import build_semantic_log_text
 
 logging.basicConfig(
@@ -153,6 +154,16 @@ def init_qdrant_collection(client: QdrantClient, collection_name: str) -> None:
 
     # Always ensure the index exists — new or pre-existing collection.
     _create_service_id_index(client, collection_name)
+
+    # The log_clusters collection also needs to be filterable by service_id,
+    # since DuplicateClusteringService._search_cluster() now scopes every
+    # nearest-neighbor lookup with a service_id query_filter (see
+    # docs/service-scoped-vector-search.md). Ensuring the index here too
+    # keeps that filtered search fast on pre-existing deployments.
+    settings = get_settings()
+    cluster_collection_name = getattr(settings, "qdrant_cluster_collection", None)
+    if cluster_collection_name and cluster_collection_name != collection_name:
+        _create_service_id_index(client, cluster_collection_name)
 
 
 # Lightweight in-memory worker metrics
@@ -293,10 +304,30 @@ def process_log(payload_str: str) -> bool:
             # → 'unknown_service' sentinel when no service is identified.
             service_id = _extract_service_id(metadata)
 
+            # normalize_service_id() never raises — it returns None for
+            # empty values or anything that doesn't match SERVICE_ID_RE
+            # (letters/numbers/._:- only, <=128 chars). If it returns None,
+            # do NOT fall back to the raw, unvalidated string: that string
+            # would later fail validate_service_id() inside
+            # build_payload_filter(), get swallowed by _search_cluster()'s
+            # except Exception, and silently skip the scoped search. Fall
+            # back to the sentinel instead, which is always valid.
+            normalized_service_id = normalize_service_id(service_id)
+
+            if normalized_service_id:
+                service_id = normalized_service_id
+            else:
+                logger.warning(
+                    "service_id=%s failed normalization; falling back to 'unknown_service'",
+                    service_id,
+                )
+                service_id = "unknown_service"
+
             clustering_service = get_duplicate_clustering_service()
             decision = clustering_service.assign_to_cluster(
                 log_text=message,
                 embedding=vector,
+                service_id=service_id,
                 service_name=str(service_name),
                 timestamp=str(timestamp) if timestamp else None,
                 log_source=semantic_text,
@@ -316,7 +347,8 @@ def process_log(payload_str: str) -> bool:
                     "message": message,
                     "parser_type": parser_type,
                     "metadata": metadata,
-                    "service_id": str(service_name),
+                    "service_id": service_id,
+                    "service_name": str(service_name),
                     "cluster_id": decision.cluster_id,
                     "is_cluster": False,
                 }
@@ -333,7 +365,7 @@ def process_log(payload_str: str) -> bool:
                 logger.info(
                     "Successfully vectorized and indexed log to Qdrant | id=%s | service_id=%s",
                     point_id,
-                    service_name,
+                    service_id,
                 )
         except Exception as e:
             logger.error("Failed to store log in Qdrant: %s", e)
