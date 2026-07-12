@@ -8,6 +8,7 @@ import logging
 import httpx
 
 from anomaly.schemas import AlertSeverity, AnomalyEvent
+from core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -232,10 +233,23 @@ class AlertDeduplicator:
 class AlertManager:
     def __init__(self):
         self.rules: Dict[str, AlertRule] = {}
+        settings = get_settings()
         self.notification_handlers: Dict[
             NotificationChannel, NotificationHandler
         ] = {
             NotificationChannel.LOG: LogNotificationHandler(),
+            NotificationChannel.EMAIL: EmailNotificationHandler(
+                smtp_config={
+                    "enabled": settings.smtp_enabled,
+                    "recipients": settings.smtp_recipients,
+                }
+            ),
+            NotificationChannel.SLACK: SlackNotificationHandler(
+                webhook_url=settings.slack_webhook_url
+            ),
+            NotificationChannel.WEBHOOK: WebhookNotificationHandler(
+                webhook_url=settings.alert_webhook_url
+            ),
         }
         self.deduplicator = AlertDeduplicator()
         self.alert_history: List[AlertNotification] = []
@@ -308,11 +322,23 @@ class AlertManager:
             handler = self.notification_handlers.get(channel)
             if handler:
                 try:
-                    await handler.send(notification)
+                    success = await handler.send(notification)
+                    if not success:
+                        logger.warning(
+                            f"Notification NOT delivered for channel "
+                            f"'{channel.value}' on alert {notification.rule_id} "
+                            f"(handler reported failure — check configuration)"
+                        )
                 except Exception as e:
                     logger.error(
                         f"Error sending {channel.value} notification: {str(e)}"
                     )
+            else:
+                logger.error(
+                    f"No notification handler registered for channel "
+                    f"'{channel.value}' on alert {notification.rule_id}; "
+                    f"notification was NOT delivered"
+                )
 
     def get_alert_history(
         self,
