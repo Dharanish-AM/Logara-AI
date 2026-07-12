@@ -16,6 +16,7 @@ class LogCluster:
     last_seen: str = ""
     sample_logs: list[str] = field(default_factory=list)
     similarity_score_average: float = 0.0
+    service_id: str | None = None
     service_name: str | None = None
     cluster_summary: str = ""
     duplicate_reduction_percentage: float = 0.0
@@ -32,6 +33,7 @@ class LogCluster:
             "last_seen": self.last_seen,
             "sample_logs": self.sample_logs,
             "similarity_score_average": round(self.similarity_score_average, 4),
+            "service_id": self.service_id,
             "service_name": self.service_name,
             "cluster_summary": self.cluster_summary,
             "duplicate_reduction_percentage": round(self.duplicate_reduction_percentage, 2),
@@ -73,6 +75,10 @@ class ClusterDecision:
     @property
     def similarity_score_average(self) -> float:
         return self.cluster.similarity_score_average if self.cluster else 0.0
+
+    @property
+    def service_id(self) -> str | None:
+        return self.cluster.service_id if self.cluster else None
 
     @property
     def service_name(self) -> str | None:
