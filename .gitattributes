@@ -1,0 +1,73 @@
+# =============================================================================
+# .gitattributes — Normalize line endings across all contributors and OSes
+# Closes issue #115
+# =============================================================================
+
+# Default: auto-detect text files and normalize to LF in the repository.
+* text=auto eol=lf
+
+# ─── Source code — always LF ─────────────────────────────────────────────────
+*.py         text eol=lf
+*.js         text eol=lf
+*.ts         text eol=lf
+*.tsx        text eol=lf
+*.jsx        text eol=lf
+*.mjs        text eol=lf
+*.cjs        text eol=lf
+*.css        text eol=lf
+*.scss       text eol=lf
+*.html       text eol=lf
+
+# ─── Configuration & data files — LF ─────────────────────────────────────────
+*.json       text eol=lf
+*.yaml       text eol=lf
+*.yml        text eol=lf
+*.toml       text eol=lf
+*.ini        text eol=lf
+*.cfg        text eol=lf
+*.env        text eol=lf
+*.env.*      text eol=lf
+*.md         text eol=lf
+*.rst        text eol=lf
+*.txt        text eol=lf
+*.sh         text eol=lf
+Makefile     text eol=lf
+Dockerfile*  text eol=lf
+*.dockerignore text eol=lf
+.gitignore   text eol=lf
+.editorconfig text eol=lf
+
+# ─── Windows shell scripts — CRLF on checkout ────────────────────────────────
+*.bat        text eol=crlf
+*.cmd        text eol=crlf
+*.ps1        text eol=crlf
+
+# ─── Binary files — never diff or convert ────────────────────────────────────
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.gif        binary
+*.ico        binary
+*.svg        binary
+*.webp       binary
+*.woff       binary
+*.woff2      binary
+*.ttf        binary
+*.eot        binary
+*.otf        binary
+*.pdf        binary
+*.zip        binary
+*.tar        binary
+*.gz         binary
+*.bz2        binary
+*.7z         binary
+*.so         binary
+*.dll        binary
+*.exe        binary
+*.pkl        binary
+*.pt         binary
+*.bin        binary
+
+# ─── Protobuf generated files — LF ───────────────────────────────────────────
+*.proto      text eol=lf
+*_pb2.py     text eol=lf

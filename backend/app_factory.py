@@ -4,6 +4,30 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.util import get_remote_address
+    _SLOWAPI_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _SLOWAPI_AVAILABLE = False
+    Limiter = None
+    _rate_limit_exceeded_handler = None
+    RateLimitExceeded = Exception
+    get_remote_address = None
+
+# Shared limiter instance — import this in route modules to apply decorators.
+limiter: "Limiter | None" = (
+    Limiter(key_func=get_remote_address) if _SLOWAPI_AVAILABLE else None
+)
+
+# Maximum allowed request body size (1 MB). Requests exceeding this are
+# rejected with HTTP 413 before they reach any route handler.
+_MAX_BODY_SIZE_BYTES = 1 * 1024 * 1024  # 1 MB
 
 
 from core.settings import get_settings
@@ -44,6 +68,20 @@ async def lifespan(app: FastAPI):
     yield
     qdrant_client.close()
 
+class _ContentSizeLimitMiddleware(BaseHTTPMiddleware):
+    """Reject requests whose body exceeds _MAX_BODY_SIZE_BYTES with HTTP 413."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > _MAX_BODY_SIZE_BYTES:
+            return Response(
+                content='{"detail":"Request body too large (max 1 MB)"}',
+                status_code=413,
+                media_type="application/json",
+            )
+        return await call_next(request)
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
 
@@ -67,6 +105,14 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Reject oversized request bodies before any route handler runs.
+    app.add_middleware(_ContentSizeLimitMiddleware)
+
+    # Wire slowapi rate limiter state so @limiter.limit() decorators work.
+    if _SLOWAPI_AVAILABLE and limiter is not None:
+        app.state.limiter = limiter
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     from fastapi import Request
     from fastapi.responses import JSONResponse

@@ -54,6 +54,16 @@ DEFAULT_RULES: list[RedactionRule] = [
         label="CREDIT_CARD",
         regex=re.compile(r"\b(?:\d[ -]*?){13,19}\b"),
     ),
+    RedactionRule(
+        label="SSN",
+        regex=re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
+    ),
+    RedactionRule(
+        label="IBAN",
+        regex=re.compile(
+            r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}(?:[A-Z0-9]?){0,16}\b"
+        ),
+    ),
 ]
 
 IPV4_RULE = RedactionRule(

@@ -32,6 +32,9 @@ jobs:
             refactor
             test
             perf
+            build
+            revert
+            style
           requireScope: false
 
   commit-messages:

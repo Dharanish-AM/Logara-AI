@@ -11,5 +11,8 @@ ollama
 sentence-transformers
 redis
 pytest
+pytest-cov
 httpx
 cryptography
+slowapi
+protobuf

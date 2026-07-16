@@ -336,11 +336,26 @@ class IngestionService:
         settings = get_settings()
 
         try:
+            # Guard: reject ingestion when the queue is dangerously deep to
+            # prevent OOM exhaustion while the worker is lagging (#119, #198).
+            from integrations.redis import MAX_QUEUE_SIZE
+            queue_depth = redis_client.llen(settings.redis_queue_name)
+            if queue_depth >= MAX_QUEUE_SIZE:
+                raise HTTPException(
+                    status_code=503,
+                    detail=(
+                        f"Log queue is full ({queue_depth}/{MAX_QUEUE_SIZE}). "
+                        "Worker is lagging — please retry later."
+                    ),
+                )
+
             redis_client.lpush(
                 settings.redis_queue_name,
                 json.dumps(payload.model_dump()),
             )
 
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(
                 status_code=500,

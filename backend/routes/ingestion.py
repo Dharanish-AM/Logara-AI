@@ -1,6 +1,6 @@
 """Ingestion routes."""
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import ValidationError
 from utils.parser import PARSER_METRICS
 from core.settings import get_settings
@@ -9,6 +9,14 @@ from services.ingestion import IngestionService
 from utils.redaction import build_default_redactor
 
 router = APIRouter()
+
+# Rate limiter — imported lazily to allow the app to start without slowapi.
+try:
+    from app_factory import limiter as _limiter
+except ImportError:  # pragma: no cover
+    _limiter = None
+
+_INGEST_LIMIT = "120/minute"  # per-IP: enough for any agent, blocks trivial floods
 
 
 def get_ingestion_service() -> IngestionService:
@@ -29,6 +37,7 @@ def get_ingestion_service() -> IngestionService:
 
 @router.post("/ingest")
 async def ingest_logs(
+    request: Request,
     payload: dict = Body(...),
     ingestion_service: IngestionService = Depends(get_ingestion_service),
 ):
@@ -47,6 +56,7 @@ async def ingest_logs(
 
 @router.post("/v1/logs")
 async def ingest_otel_logs(
+    request: Request,
     payload: dict = Body(...),
     ingestion_service: IngestionService = Depends(get_ingestion_service),
 ):
