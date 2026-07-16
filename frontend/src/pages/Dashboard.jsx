@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 function Dashboard() {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -27,7 +27,7 @@ function Dashboard() {
   const [ingestStatus, setIngestStatus] = useState(null);
 
   // Fetch dashboard stats & latest logs
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       // 1. Fetch latest logs
       const logsRes = await fetch(`${API_URL}/logs?limit=50`);
@@ -70,13 +70,13 @@ function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_URL]);
 
   useEffect(() => {
     fetchDashboardData();
     const interval = setInterval(fetchDashboardData, 5000); // Poll every 5 seconds
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchDashboardData]);
 
   // Handle Log Ingestion
   const handleIngest = async (e) => {

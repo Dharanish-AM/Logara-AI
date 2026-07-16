@@ -146,3 +146,21 @@ def anyio_backend() -> str:
     routers and async background tasks. Defaults to using asyncio.
     """
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def mock_redis_client_for_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Automatically mocks the Redis connection when running unit tests
+    on CI or locally, unless live service tests are explicitly enabled.
+    """
+    import os
+    if os.getenv("ENABLE_LIVE_SERVICE_TESTS") != "1":
+        from unittest.mock import MagicMock
+        from integrations.redis import redis_client
+
+        mock_redis = MagicMock()
+        mock_redis.llen.return_value = 0
+        mock_redis.lpush.return_value = 1
+        monkeypatch.setattr(redis_client, "_client", mock_redis)
+
