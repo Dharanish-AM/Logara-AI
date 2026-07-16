@@ -73,6 +73,7 @@ function Dashboard() {
   }, [API_URL]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDashboardData();
     const interval = setInterval(fetchDashboardData, 5000); // Poll every 5 seconds
     return () => clearInterval(interval);
