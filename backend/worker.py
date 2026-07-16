@@ -11,6 +11,7 @@ import os
 import time
 import uuid
 from typing import Dict, Any, Optional
+from dataclasses import dataclass
 
 from sentence_transformers import SentenceTransformer
 

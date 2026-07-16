@@ -29,6 +29,9 @@ ifeq ($(OS),Windows_NT)
   HAS_RUFF      := $(shell where ruff 2>nul)
   HAS_FLAKE8    := $(shell where flake8 2>nul)
   HAS_NPX       := $(shell where npx 2>nul)
+  HAS_UV        := $(shell where uv 2>nul)
+  RUFF_VENV     := $(VENV_DIR)/Scripts/ruff.exe
+  HAS_RUFF_VENV := $(shell if exist "$(subst /,\,$(RUFF_VENV))" echo yes)
 else
   PYTHON_BIN    := $(VENV_DIR)/bin/python
   PIP_BIN       := $(VENV_DIR)/bin/pip
@@ -36,10 +39,26 @@ else
   HAS_RUFF      := $(shell command -v ruff 2>/dev/null)
   HAS_FLAKE8    := $(shell command -v flake8 2>/dev/null)
   HAS_NPX       := $(shell command -v npx 2>/dev/null)
+  HAS_UV        := $(shell command -v uv 2>/dev/null)
+  RUFF_VENV     := $(VENV_DIR)/bin/ruff
+  HAS_RUFF_VENV := $(shell if [ -f "$(RUFF_VENV)" ]; then echo yes; fi)
 endif
 
 PYTHON          ?= $(PYTHON_BIN)
-PIP             ?= $(PIP_BIN)
+
+# Use uv pip if uv is available, otherwise default to pip bin
+ifneq ($(HAS_UV),)
+  PIP           := uv pip install
+else
+  PIP           := "$(PIP_BIN)" install
+endif
+
+# Detect ruff inside virtualenv or system PATH
+ifneq ($(HAS_RUFF_VENV),)
+  RUFF          := "$(RUFF_VENV)"
+else ifneq ($(HAS_RUFF),)
+  RUFF          := ruff
+endif
 
 # ─── Default target ─────────────────────────────────────────────────────────
 .DEFAULT_GOAL := help
@@ -54,7 +73,7 @@ help: ## Show this help message
 # ─── Install dependencies ───────────────────────────────────────────────────
 install: ## Install Python and Node.js dependencies
 	@echo "→ Installing Python dependencies..."
-	cd $(BACKEND_DIR) && "$(PIP)" install -r requirements.txt
+	cd $(BACKEND_DIR) && $(PIP) -r requirements.txt
 	@echo "→ Installing Node.js dependencies..."
 	cd $(FRONTEND_DIR) && npm install
 	@echo "✓ Dependencies installed."
@@ -121,8 +140,8 @@ test-fast: ## Run tests without coverage (faster feedback loop)
 
 lint: ## Run Python linting on the backend
 	@echo "→ Linting backend Python code..."
-ifneq ($(HAS_RUFF),)
-	cd $(BACKEND_DIR) && ruff check .
+ifneq ($(RUFF),)
+	cd $(BACKEND_DIR) && $(RUFF) check .
 else
 ifneq ($(HAS_FLAKE8),)
 	cd $(BACKEND_DIR) && flake8 . --max-line-length=120 --exclude=.venv,__pycache__

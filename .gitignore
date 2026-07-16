@@ -22,3 +22,9 @@ out/
 # Logs
 logs/
 *.log
+
+# Tests and Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
