@@ -56,28 +56,20 @@ class LogService:
 
     def get_embedding(self, text: str) -> List[float]:
         """
-        Generate vector embedding using local Ollama service.
-        Falls back to a deterministic hash-based mock vector if Ollama is unreachable.
+        Generate vector embedding using local SentenceTransformer model.
+        Falls back to a deterministic hash-based mock vector if loading fails.
         """
         try:
-            url = f"{OLLAMA_BASE_URL}/api/embeddings"
-            response = httpx.post(
-                url,
-                json={"model": LOCAL_LLM_MODEL, "prompt": text},
-                timeout=5.0
-            )
-            if response.status_code == 200:
-                emb = response.json().get("embedding")
-                if isinstance(emb, list) and len(emb) > 0:
-                    # Adjust dimensions if necessary to match VECTOR_SIZE
-                    if len(emb) != VECTOR_SIZE:
-                        if len(emb) > VECTOR_SIZE:
-                            emb = emb[:VECTOR_SIZE]
-                        else:
-                            emb = emb + [0.0] * (VECTOR_SIZE - len(emb))
-                    return emb
+            from sentence_transformers import SentenceTransformer
+            model_name = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
+            if not hasattr(self, "_emb_model") or self._emb_model is None:
+                self._emb_model = SentenceTransformer(model_name)
+            vector = self._emb_model.encode(text)
+            if hasattr(vector, "tolist"):
+                return vector.tolist()
+            return list(vector)
         except Exception as e:
-            logger.debug(f"Ollama embedding lookup failed: {e}. Using deterministic mock vector.")
+            logger.warning(f"SentenceTransformer embedding failed: {e}. Using deterministic mock vector.")
 
         # Deterministic mock fallback
         h = hashlib.sha256(text.encode('utf-8')).digest()
@@ -250,12 +242,15 @@ class LogService:
                     "prompt": prompt,
                     "stream": False
                 },
-                timeout=60.0
+                timeout=120.0  # CPU-only Ollama inference can take 90+ seconds
             )
             if response.status_code == 200:
                 answer = response.json().get("response")
+        except httpx.TimeoutException as e:
+            logger.warning(f"Ollama synthesis timed out (>{120}s): {e}")
+            answer = "Ollama LLM took too long to respond (CPU inference timeout). Try a shorter query or wait for the model to warm up."
         except Exception as e:
-            logger.debug(f"Ollama natural language synthesis failed: {e}")
-            answer = "Unable to contact Ollama for natural language summary. Please check your connection."
+            logger.warning(f"Ollama natural language synthesis failed: {e}")
+            answer = "Unable to contact Ollama for natural language summary. Please check that Ollama is running on port 11434."
 
         return logs, answer
