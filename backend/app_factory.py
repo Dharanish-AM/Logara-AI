@@ -40,6 +40,7 @@ from routes.ai import router as ai_router
 from routes.parsing import router as parsing_router
 from routes.performance import router as performance_router
 from routes.alerts import router as alerts_router
+from routes.anomalies import router as anomalies_router
 from routes.security import router as security_router
 from services.ingestion import IngestionService
 from services.log_service import LogService
@@ -141,6 +142,7 @@ def create_app() -> FastAPI:
     app.include_router(parsing_router)
     app.include_router(performance_router)
     app.include_router(alerts_router)
+    app.include_router(anomalies_router)
     app.include_router(security_router)
 
     return app
