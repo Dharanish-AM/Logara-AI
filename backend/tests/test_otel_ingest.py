@@ -12,6 +12,8 @@ from utils.otel.logs import (
     parse_otel_log_payload,
 )
 
+from fixtures.otel_payloads import COMPLEX_OTEL_PAYLOAD, LARGE_BATCH_OTEL_PAYLOAD
+
 client = TestClient(app)
 
 
@@ -199,3 +201,43 @@ def test_ingest_otel_logs_endpoint_success(mock_lpush):
 def test_ingest_otel_logs_empty_payload():
     response = client.post("/v1/logs", json={})
     assert response.status_code == 400
+
+
+@patch("services.ingestion.redis_client.lpush")
+def test_parse_otel_log_payload_complex_fixtures(mock_lpush):
+    records = parse_otel_log_payload(COMPLEX_OTEL_PAYLOAD)
+    assert len(records) == 1
+    rec = records[0]
+
+    assert rec["level"] == "ERROR"
+    assert "2023-04-22" in rec["timestamp"]
+    assert rec["message"] == "Complex error occurred"
+    
+    metadata = rec["metadata"]
+    assert metadata["service"] == "complex-service"
+    assert metadata["host.name"] == "server-1"
+    assert metadata["cloud.provider"] == "aws"
+    assert metadata["process.pid"] == 9876
+    assert metadata["is.retried"] is True
+    
+    # Check nested arrays and kvlists
+    assert metadata["db.query.params"] == ["user_id_123", 42]
+    assert metadata["http.request.headers"] == {
+        "user-agent": "Mozilla/5.0",
+        "content-type": "application/json"
+    }
+
+
+@pytest.mark.parametrize("payload, expected_count", [
+    (COMPLEX_OTEL_PAYLOAD, 1),
+    (LARGE_BATCH_OTEL_PAYLOAD, 2)
+])
+@patch("services.ingestion.redis_client.lpush")
+def test_ingest_otel_logs_parametrized(mock_lpush, payload, expected_count):
+    response = client.post("/v1/logs", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["processed_records"] == expected_count
+
+    assert mock_lpush.call_count == expected_count
