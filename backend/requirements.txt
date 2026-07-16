@@ -11,6 +11,10 @@ ollama
 sentence-transformers
 redis
 pytest
+pytest-cov
 httpx
 opentelemetry-proto
+numpy
+cryptography
+slowapi
 protobuf

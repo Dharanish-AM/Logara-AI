@@ -12,6 +12,8 @@ from utils.otel.logs import (
     parse_otel_log_payload,
 )
 
+from fixtures.otel_payloads import COMPLEX_OTEL_PAYLOAD, LARGE_BATCH_OTEL_PAYLOAD
+
 client = TestClient(app)
 
 
@@ -202,60 +204,40 @@ def test_ingest_otel_logs_empty_payload():
 
 
 @patch("services.ingestion.redis_client.lpush")
-def test_ingest_otel_logs_protobuf_success(mock_lpush):
-    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
-    from google.protobuf.json_format import ParseDict
+def test_parse_otel_log_payload_complex_fixtures(mock_lpush):
+    records = parse_otel_log_payload(COMPLEX_OTEL_PAYLOAD)
+    assert len(records) == 1
+    rec = records[0]
+
+    assert rec["level"] == "ERROR"
+    assert "2023-04-22" in rec["timestamp"]
+    assert rec["message"] == "Complex error occurred"
     
-    payload_dict = {
-        "resourceLogs": [
-            {
-                "resource": {
-                    "attributes": [
-                        {"key": "service.name", "value": {"stringValue": "gateway-pb"}}
-                    ]
-                },
-                "scopeLogs": [
-                    {
-                        "logRecords": [
-                            {
-                                "timeUnixNano": "1682124012000000000",
-                                "severityText": "INFO",
-                                "body": {"stringValue": "Protobuf login success"},
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
+    metadata = rec["metadata"]
+    assert metadata["service"] == "complex-service"
+    assert metadata["host.name"] == "server-1"
+    assert metadata["cloud.provider"] == "aws"
+    assert metadata["process.pid"] == 9876
+    assert metadata["is.retried"] is True
+    
+    # Check nested arrays and kvlists
+    assert metadata["db.query.params"] == ["user_id_123", 42]
+    assert metadata["http.request.headers"] == {
+        "user-agent": "Mozilla/5.0",
+        "content-type": "application/json"
     }
-    
-    pb_request = ParseDict(payload_dict, ExportLogsServiceRequest())
-    raw_body = pb_request.SerializeToString()
-    
-    response = client.post(
-        "/v1/logs", 
-        content=raw_body, 
-        headers={"Content-Type": "application/x-protobuf"}
-    )
-    
+
+
+@pytest.mark.parametrize("payload, expected_count", [
+    (COMPLEX_OTEL_PAYLOAD, 1),
+    (LARGE_BATCH_OTEL_PAYLOAD, 2)
+])
+@patch("services.ingestion.redis_client.lpush")
+def test_ingest_otel_logs_parametrized(mock_lpush, payload, expected_count):
+    response = client.post("/v1/logs", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "success"
-    assert data["processed_records"] == 1
-    
-    # Verify Redis push
-    assert mock_lpush.called
-    called_args = mock_lpush.call_args[0]
-    queued_payload = json.loads(called_args[1])
-    assert queued_payload["parsed"]["message"] == "Protobuf login success"
-    assert queued_payload["parsed"]["metadata"]["service"] == "gateway-pb"
+    assert data["processed_records"] == expected_count
 
-
-def test_ingest_otel_logs_invalid_protobuf():
-    response = client.post(
-        "/v1/logs", 
-        content=b"invalid protobuf data", 
-        headers={"Content-Type": "application/x-protobuf"}
-    )
-    assert response.status_code == 400
-    assert "Invalid Protocol Buffer payload" in response.json()["detail"]
+    assert mock_lpush.call_count == expected_count

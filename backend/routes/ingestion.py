@@ -10,6 +10,22 @@ from utils.redaction import build_default_redactor
 
 router = APIRouter()
 
+# Rate limiter — imported lazily to allow the app to start without slowapi.
+try:
+    from app_factory import limiter as _limiter
+except ImportError:  # pragma: no cover
+    _limiter = None
+
+_INGEST_LIMIT = "120/minute"  # per-IP: enough for any agent, blocks trivial floods
+
+
+def rate_limit(limit_value: str):
+    def decorator(func):
+        if _limiter is not None:
+            return _limiter.limit(limit_value)(func)
+        return func
+    return decorator
+
 
 def get_ingestion_service() -> IngestionService:
     from main import app
@@ -28,7 +44,9 @@ def get_ingestion_service() -> IngestionService:
 
 
 @router.post("/ingest")
+@rate_limit(_INGEST_LIMIT)
 async def ingest_logs(
+    request: Request,
     payload: dict = Body(...),
     ingestion_service: IngestionService = Depends(get_ingestion_service),
 ):
@@ -46,8 +64,10 @@ async def ingest_logs(
 
 
 @router.post("/v1/logs")
+@rate_limit(_INGEST_LIMIT)
 async def ingest_otel_logs(
     request: Request,
+    payload: dict = Body(...),
     ingestion_service: IngestionService = Depends(get_ingestion_service),
 ):
     content_type = request.headers.get("content-type", "")

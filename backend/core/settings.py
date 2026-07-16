@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     )
     redact_ipv4: bool = False
 
+    # --- Alert Notifications ---
+    smtp_enabled: bool = False
+    smtp_recipients: list[str] = Field(default_factory=list)
+    slack_webhook_url: str | None = None
+    alert_webhook_url: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

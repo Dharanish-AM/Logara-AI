@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
         payload: dict[str, Any]
 
 from models.log_cluster import ClusterDecision, LogCluster
+from services.vector_store import build_payload_filter
 from utils.similarity import normalize_log_text, normalize_vector
 
 logger = logging.getLogger(__name__)
@@ -72,15 +73,31 @@ class DuplicateClusteringService:
         self,
         log_text: str,
         embedding: list[float],
+        service_id: str,
         service_name: str | None = None,
         timestamp: str | None = None,
         log_source: str | None = None,
     ) -> ClusterDecision:
-        """Assign a log to an existing cluster or create a new cluster."""
+        """Assign a log to an existing cluster or create a new cluster.
+
+        `service_id` is required. It is used to scope the Qdrant cluster
+        search so that a log from one service can never be matched against
+        an existing cluster belonging to a different service, matching the
+        same scoping guarantee documented in
+        docs/service-scoped-vector-search.md and already enforced for
+        `/search` via `build_payload_filter()`.
+        """
         if not self.enable_duplicate_clustering or self.qdrant_client is None:
             return ClusterDecision(cluster_id=None, is_duplicate=False, similarity_score=0.0)
 
         if not log_text or not str(log_text).strip():
+            return ClusterDecision(cluster_id=None, is_duplicate=False, similarity_score=0.0)
+
+        if not service_id or not str(service_id).strip():
+            logger.warning(
+                "assign_to_cluster called without a service_id; refusing to run "
+                "an unscoped Qdrant cluster search"
+            )
             return ClusterDecision(cluster_id=None, is_duplicate=False, similarity_score=0.0)
 
         normalized_embedding = normalize_vector(embedding)
@@ -88,10 +105,11 @@ class DuplicateClusteringService:
             return ClusterDecision(cluster_id=None, is_duplicate=False, similarity_score=0.0)
 
         timestamp_value = timestamp or self._utc_timestamp()
-        search_result = self._search_cluster(normalized_embedding)
+        search_result = self._search_cluster(normalized_embedding, service_id)
         if not search_result:
             cluster = self._create_cluster(
                 log_text=log_text,
+                service_id=service_id,
                 service_name=service_name,
                 timestamp=timestamp_value,
                 log_source=log_source,
@@ -116,6 +134,7 @@ class DuplicateClusteringService:
         if not isinstance(payload, dict):
             cluster = self._create_cluster(
                 log_text=log_text,
+                service_id=service_id,
                 service_name=service_name,
                 timestamp=timestamp_value,
                 log_source=log_source,
@@ -132,6 +151,7 @@ class DuplicateClusteringService:
         if score < self.similarity_threshold:
             cluster = self._create_cluster(
                 log_text=log_text,
+                service_id=service_id,
                 service_name=service_name,
                 timestamp=timestamp_value,
                 log_source=log_source,
@@ -158,6 +178,7 @@ class DuplicateClusteringService:
             last_seen=str(payload.get("last_seen") or timestamp_value),
             sample_logs=[str(item) for item in payload.get("sample_logs") or []],
             similarity_score_average=float(payload.get("similarity_score_average") or score),
+            service_id=str(payload.get("service_id") or service_id),
             service_name=payload.get("service_name") or service_name,
             cluster_summary=str(payload.get("cluster_summary") or ""),
             duplicate_reduction_percentage=float(payload.get("duplicate_reduction_percentage") or 0.0),
@@ -212,6 +233,7 @@ class DuplicateClusteringService:
         return {
             "status": status,
             "severity": severity,
+            "service_id": cluster.service_id,
             "service_name": cluster.service_name,
             "occurrence_count": cluster.occurrence_count,
             "cluster_label": self._cluster_label(cluster),
@@ -244,6 +266,7 @@ class DuplicateClusteringService:
             "sample_logs": list(cluster.sample_logs),
             "sample_count": len(cluster.sample_logs),
             "similarity_score_average": round(cluster.similarity_score_average, 4),
+            "service_id": cluster.service_id,
             "service_name": cluster.service_name,
             "duplicate_reduction_percentage": round(duplicate_reduction_percentage, 2),
             "visualization_metadata": visualization_metadata,
@@ -262,22 +285,46 @@ class DuplicateClusteringService:
         ratio = min(100.0, ((occurrence_count - 1) / total_logs) * 100.0)
         return round(ratio, 2)
 
-    def _search_cluster(self, embedding: list[float]) -> list[Any] | None:
+    def _search_cluster(self, embedding: list[float], service_id: str) -> list[Any] | None:
         try:
-            result = self.qdrant_client.search(
+            query_filter = build_payload_filter(service_id=service_id)
+        except Exception:
+            logger.exception(
+                "Failed to build service-scoped Qdrant filter for service_id=%s; "
+                "skipping cluster search rather than searching unscoped",
+                service_id,
+            )
+            return None
+
+        search_fn = getattr(self.qdrant_client, "search", None)
+        if callable(search_fn):
+            try:
+                result = search_fn(
+                    collection_name=self.clusters_collection,
+                    query_vector=embedding,
+                    query_filter=query_filter,
+                    limit=1,
+                    with_payload=True,
+                )
+            except TypeError:
+                result = search_fn(
+                    collection_name=self.clusters_collection,
+                    query_vector=embedding,
+                    query_filter=query_filter,
+                    limit=1,
+                    with_payload=True,
+                    score_threshold=0.0,
+                )
+        else:
+            # Fallback for newer qdrant-client versions
+            res = self.qdrant_client.query_points(
                 collection_name=self.clusters_collection,
-                query_vector=embedding,
+                query=embedding,
+                query_filter=query_filter,
                 limit=1,
                 with_payload=True,
             )
-        except TypeError:
-            result = self.qdrant_client.search(
-                collection_name=self.clusters_collection,
-                query_vector=embedding,
-                limit=1,
-                with_payload=True,
-                score_threshold=0.0,
-            )
+            result = res.points if hasattr(res, "points") else res
 
         if not isinstance(result, (list, tuple)) or not result:
             return None
@@ -287,19 +334,21 @@ class DuplicateClusteringService:
     def _create_cluster(
         self,
         log_text: str,
+        service_id: str,
         service_name: str | None,
         timestamp: str,
         log_source: str | None = None,
     ) -> LogCluster:
         representative = str(log_text).strip() or log_source or "unknown log"
         return LogCluster(
-            cluster_id=f"cluster-{uuid.uuid4().hex}",
+            cluster_id=str(uuid.uuid4()),
             representative_log=representative,
             occurrence_count=1,
             first_seen=timestamp,
             last_seen=timestamp,
             sample_logs=[representative],
             similarity_score_average=0.0,
+            service_id=service_id,
             service_name=service_name,
         )
 

@@ -60,7 +60,21 @@ class RedisQueueClient:
     def ping(self):
         return self.client.ping()
 
+    def llen(self, queue_name: str) -> int:
+        """Return the current length of the named list (queue depth)."""
+        return int(self.client.llen(queue_name) or 0)
+
+    def ltrim(self, queue_name: str, start: int, stop: int) -> None:
+        """Trim the list so it contains only elements from start to stop."""
+        self.client.ltrim(queue_name, start, stop)
+
+
 # Shared lazy Redis client; callers may call connect() up front or handle
 # connection errors on first queue operation if Redis is not yet reachable.
 logger = logging.getLogger(__name__)
 redis_client = RedisQueueClient()
+
+# Hard cap on Redis queue depth. If the worker is lagging and the queue
+# grows beyond this threshold, new log payloads are rejected with HTTP 429
+# rather than being enqueued — protecting against OOM exhaustion (#119, #198).
+MAX_QUEUE_SIZE: int = 50_000

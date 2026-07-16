@@ -5,8 +5,10 @@ from typing import Callable, Optional, Dict, List, Any
 from abc import ABC, abstractmethod
 import json
 import logging
+import httpx
 
 from anomaly.schemas import AlertSeverity, AnomalyEvent
+from core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -139,10 +141,20 @@ class SlackNotificationHandler(NotificationHandler):
                 ],
             }
 
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.post(self.webhook_url, json=payload)
+                response.raise_for_status()
+
             logger.info(
                 f"Slack notification sent for alert {notification.rule_id}"
             )
             return True
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Slack notification failed for alert {notification.rule_id}: "
+                f"HTTP {e.response.status_code}"
+            )
+            return False
         except Exception as e:
             logger.error(f"Error sending Slack notification: {str(e)}")
             return False
@@ -169,8 +181,22 @@ class WebhookNotificationHandler(NotificationHandler):
 
         try:
             payload = notification.to_dict()
+
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.post(
+                    self.webhook_url,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                )
+                response.raise_for_status()
+
             logger.info(f"Webhook notification sent to {self.webhook_url}")
             return True
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Webhook notification failed: HTTP {e.response.status_code}"
+            )
+            return False
         except Exception as e:
             logger.error(f"Error sending webhook notification: {str(e)}")
             return False
@@ -207,10 +233,23 @@ class AlertDeduplicator:
 class AlertManager:
     def __init__(self):
         self.rules: Dict[str, AlertRule] = {}
+        settings = get_settings()
         self.notification_handlers: Dict[
             NotificationChannel, NotificationHandler
         ] = {
             NotificationChannel.LOG: LogNotificationHandler(),
+            NotificationChannel.EMAIL: EmailNotificationHandler(
+                smtp_config={
+                    "enabled": settings.smtp_enabled,
+                    "recipients": settings.smtp_recipients,
+                }
+            ),
+            NotificationChannel.SLACK: SlackNotificationHandler(
+                webhook_url=settings.slack_webhook_url
+            ),
+            NotificationChannel.WEBHOOK: WebhookNotificationHandler(
+                webhook_url=settings.alert_webhook_url
+            ),
         }
         self.deduplicator = AlertDeduplicator()
         self.alert_history: List[AlertNotification] = []
@@ -283,11 +322,23 @@ class AlertManager:
             handler = self.notification_handlers.get(channel)
             if handler:
                 try:
-                    await handler.send(notification)
+                    success = await handler.send(notification)
+                    if not success:
+                        logger.warning(
+                            f"Notification NOT delivered for channel "
+                            f"'{channel.value}' on alert {notification.rule_id} "
+                            f"(handler reported failure — check configuration)"
+                        )
                 except Exception as e:
                     logger.error(
                         f"Error sending {channel.value} notification: {str(e)}"
                     )
+            else:
+                logger.error(
+                    f"No notification handler registered for channel "
+                    f"'{channel.value}' on alert {notification.rule_id}; "
+                    f"notification was NOT delivered"
+                )
 
     def get_alert_history(
         self,

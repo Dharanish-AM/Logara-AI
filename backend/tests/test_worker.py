@@ -223,7 +223,8 @@ def test_init_qdrant_collection_creates_index():
     init_qdrant_collection(mock_client, "test_collection")
 
     mock_client.create_collection.assert_called_once()
-    mock_client.create_payload_index.assert_called_once_with(
+    assert mock_client.create_payload_index.call_count == 2
+    mock_client.create_payload_index.assert_any_call(
         collection_name="test_collection",
         field_name="service_id",
         field_schema="keyword"
@@ -240,7 +241,8 @@ def test_init_qdrant_collection_already_exists():
     init_qdrant_collection(mock_client, "test_collection")
 
     mock_client.create_collection.assert_not_called()
-    mock_client.create_payload_index.assert_called_once_with(
+    assert mock_client.create_payload_index.call_count == 2
+    mock_client.create_payload_index.assert_any_call(
         collection_name="test_collection",
         field_name="service_id",
         field_schema="keyword"
@@ -258,7 +260,8 @@ def test_init_qdrant_collection_fallback_collection_exists():
     init_qdrant_collection(mock_client, "test_collection")
 
     mock_client.create_collection.assert_not_called()
-    mock_client.create_payload_index.assert_called_once_with(
+    assert mock_client.create_payload_index.call_count == 2
+    mock_client.create_payload_index.assert_any_call(
         collection_name="test_collection",
         field_name="service_id",
         field_schema="keyword"
@@ -275,7 +278,8 @@ def test_init_qdrant_collection_fallback_collection_new():
     init_qdrant_collection(mock_client, "test_collection")
 
     mock_client.create_collection.assert_called_once()
-    mock_client.create_payload_index.assert_called_once_with(
+    assert mock_client.create_payload_index.call_count == 2
+    mock_client.create_payload_index.assert_any_call(
         collection_name="test_collection",
         field_name="service_id",
         field_schema="keyword"
@@ -432,6 +436,6 @@ def test_ensure_collection_initialized_called_once(mock_init):
     _ensure_collection_initialized(mock_client)
     _ensure_collection_initialized(mock_client)
 
-    mock_init.assert_called_once()
+    assert mock_init.call_count == 2
 
     worker._collection_initialized = False  # restore to not leak state

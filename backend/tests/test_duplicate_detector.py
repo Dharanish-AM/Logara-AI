@@ -50,6 +50,7 @@ def test_detect_duplicate_updates_existing_cluster(caplog):
     decision = service.assign_to_cluster(
         log_text="ERROR: Database timeout for user 789",
         embedding=[0.1] * 384,
+        service_id="payments-service",
         service_name="payments-service",
         timestamp="2026-05-22T10:00:00Z",
     )
@@ -84,6 +85,7 @@ def test_detect_duplicate_creates_new_cluster_when_below_threshold():
     decision = service.assign_to_cluster(
         log_text="Disk pressure observed in volume /var/log",
         embedding=[0.2] * 384,
+        service_id="storage-service",
         service_name="storage-service",
         timestamp="2026-05-22T10:00:00Z",
     )
@@ -108,6 +110,7 @@ def test_assign_to_cluster_returns_noop_when_disabled():
     decision = service.assign_to_cluster(
         log_text="ERROR: Database timeout for user 789",
         embedding=[0.1] * 384,
+        service_id="payments-service",
         service_name="payments-service",
         timestamp="2026-05-22T10:00:00Z",
     )
@@ -122,6 +125,7 @@ def test_generate_cluster_summary_and_dashboard_metrics():
 
     cluster = service._create_cluster(
         log_text="ERROR: Database timeout for user 123",
+        service_id="payments-service",
         service_name="payments-service",
         timestamp="2026-05-22T10:00:00Z",
     )
@@ -141,6 +145,7 @@ def test_duplicate_reduction_percentage_reflects_repeated_duplicates():
     service = make_service(MagicMock())
     cluster = service._create_cluster(
         log_text="ERROR: Database timeout for user 123",
+        service_id="payments-service",
         service_name="payments-service",
         timestamp="2026-05-22T10:00:00Z",
     )
@@ -170,6 +175,7 @@ def test_duplicate_reduction_percentage_handles_zero_logs():
     service = make_service(MagicMock())
     cluster = service._create_cluster(
         log_text="WARN: Rate limit approaching",
+        service_id="api-service",
         service_name="api-service",
         timestamp="2026-05-22T10:00:00Z",
     )
