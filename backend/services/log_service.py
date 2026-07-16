@@ -250,7 +250,7 @@ class LogService:
                     "prompt": prompt,
                     "stream": False
                 },
-                timeout=10.0
+                timeout=60.0
             )
             if response.status_code == 200:
                 answer = response.json().get("response")
