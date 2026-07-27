@@ -51,6 +51,6 @@ jobs:
             }
 
       - name: Sync labels from changed files
-        uses: actions/labeler@v6
+        uses: actions/labeler@v7
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
